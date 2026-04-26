@@ -16,6 +16,9 @@ export function getDb() {
     postgres(url, {
       // Serverless-safe: avoid prepared statements across pooled connections.
       prepare: false,
+      ssl: {
+        rejectUnauthorized: false,
+      },
     });
 
   globalForDb.__hangoutDb = globalForDb.__hangoutDb ?? drizzle(globalForDb.__hangoutSql, { schema });
