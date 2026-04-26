@@ -40,7 +40,16 @@ Create a file named `.env.local` in this folder and set:
 
 ```env
 DATABASE_URL="paste-your-supabase-transaction-pooler-url-here"
+GOOGLE_OAUTH_CLIENT_ID="your-google-oauth-client-id"
+GOOGLE_OAUTH_CLIENT_SECRET="your-google-oauth-client-secret"
 ```
+
+Google OAuth callback URL:
+
+- Local: `http://localhost:3000/api/auth/google/callback`
+- Production: `https://your-domain.com/api/auth/google/callback`
+
+Create OAuth credentials in Google Cloud Console and add these callback URLs to "Authorized redirect URIs".
 
 ## Step 4: Create Tables (Drizzle)
 
@@ -68,6 +77,8 @@ The simplest deploy path is GitHub -> Vercel:
 2. Import the repo in Vercel.
 3. In Vercel project settings, add the same env var:
    - `DATABASE_URL` = your Supabase Transaction Pooler URL
+   - `GOOGLE_OAUTH_CLIENT_ID`
+   - `GOOGLE_OAUTH_CLIENT_SECRET`
 4. Deploy.
 
 ## API Endpoints
@@ -78,4 +89,3 @@ The simplest deploy path is GitHub -> Vercel:
 - `POST /api/activities/:id/join`
 - `POST /api/activities/:id/leave`
 - `DELETE /api/activities/:id`
-

@@ -5,7 +5,7 @@ import { getDb } from "@/db";
 import { activityParticipants, activities, galleryEntries, reviews, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { computeBadges } from "@/lib/badges";
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 type UpdateProfilePayload = {
   displayName?: unknown;
@@ -36,6 +36,7 @@ function toNumber(value: unknown): number {
 export async function GET(_req: Request, ctx: RouteContext<"/api/profiles/[id]">) {
   const { id } = await ctx.params;
   const db = getDb();
+  const currentUser = await getCurrentUser();
   const [profile] = await db
     .select({
       id: users.id,
@@ -82,9 +83,11 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/profiles/[id]">
       rating: reviews.rating,
       comment: reviews.comment,
       activityId: reviews.activityId,
+      activityTitle: activities.title,
       createdAt: reviews.createdAt,
     })
     .from(reviews)
+    .leftJoin(activities, eq(reviews.activityId, activities.id))
     .where(eq(reviews.targetUserId, id))
     .orderBy(desc(reviews.createdAt));
 
@@ -125,6 +128,52 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/profiles/[id]">
     .where(eq(activities.creatorId, id))
     .orderBy(desc(activities.createdAt));
 
+  let reviewContext: {
+    canSubmitProfileReview: boolean;
+    hasProfileReview: boolean;
+    eligibleActivities: Array<{ id: string; title: string; location: string; whenISO: string }>;
+    reviewedActivityIds: string[];
+  } | null = null;
+
+  if (currentUser && currentUser.id !== id) {
+    const sharedActivities = await db.execute<{
+      id: string;
+      title: string;
+      location: string;
+      when_iso: string;
+    }>(
+      sql`
+        select a.id, a.title, a.location, a.when_iso
+        from activities a
+        inner join activity_participants mine on mine.activity_id = a.id
+        inner join activity_participants target on target.activity_id = a.id
+        where mine.user_id = ${currentUser.id} and target.user_id = ${id}
+        order by a.when_iso desc
+      `,
+    );
+
+    const myReviewRows = await db
+      .select({ activityId: reviews.activityId })
+      .from(reviews)
+      .where(and(eq(reviews.targetUserId, id), eq(reviews.authorUserId, currentUser.id)));
+    const hasProfileReview = myReviewRows.some((row) => row.activityId === null);
+    const reviewedActivityIds = myReviewRows
+      .map((row) => row.activityId)
+      .filter((activityId): activityId is string => typeof activityId === "string");
+
+    reviewContext = {
+      canSubmitProfileReview: sharedActivities.length > 0 && !hasProfileReview,
+      hasProfileReview,
+      reviewedActivityIds,
+      eligibleActivities: sharedActivities.map((row) => ({
+        id: row.id,
+        title: row.title,
+        location: row.location,
+        whenISO: row.when_iso,
+      })),
+    };
+  }
+
   return Response.json({
     profile,
     stats: {
@@ -143,10 +192,12 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/profiles/[id]">
     },
     reviews: reviewRows.map((row) => ({
       ...row,
+      reviewType: row.activityId ? "activity" : "profile",
       author: reviewerMap.get(row.authorUserId) ?? null,
     })),
     gallery,
     recentActivities,
+    reviewContext,
   });
 }
 

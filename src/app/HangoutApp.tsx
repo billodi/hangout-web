@@ -74,6 +74,8 @@ type ProfileDetail = {
     rating: number;
     comment: string;
     activityId: string | null;
+    activityTitle: string | null;
+    reviewType: "profile" | "activity";
     createdAt: string;
     author: {
       id: string;
@@ -90,6 +92,17 @@ type ProfileDetail = {
     lng: number | null;
     createdAt: string;
   }>;
+  reviewContext: {
+    canSubmitProfileReview: boolean;
+    hasProfileReview: boolean;
+    eligibleActivities: Array<{
+      id: string;
+      title: string;
+      location: string;
+      whenISO: string;
+    }>;
+    reviewedActivityIds: string[];
+  } | null;
 };
 
 type BeforeInstallPromptEvent = Event & {
@@ -342,6 +355,8 @@ export default function HangoutApp({
 
   const [reviewRating, setReviewRating] = useState("5");
   const [reviewComment, setReviewComment] = useState("");
+  const [reviewMode, setReviewMode] = useState<"profile" | "activity">("profile");
+  const [reviewActivityId, setReviewActivityId] = useState("");
 
   const [galleryImageUrl, setGalleryImageUrl] = useState("");
   const [galleryCaption, setGalleryCaption] = useState("");
@@ -361,6 +376,11 @@ export default function HangoutApp({
     () => activities.find((a) => a.id === selectedActivityId) ?? null,
     [activities, selectedActivityId],
   );
+  const availableActivityReviewOptions = useMemo(() => {
+    if (!profileDetail?.reviewContext) return [];
+    const reviewed = new Set(profileDetail.reviewContext.reviewedActivityIds);
+    return profileDetail.reviewContext.eligibleActivities.filter((activity) => !reviewed.has(activity.id));
+  }, [profileDetail]);
 
   const filteredActivities = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -379,7 +399,40 @@ export default function HangoutApp({
   }, [activities, search, filterType, onlyOpen, sortBy]);
 
   useEffect(() => {
+    if (!profileDetail?.reviewContext) {
+      setReviewMode("profile");
+      setReviewActivityId("");
+      return;
+    }
+    if (availableActivityReviewOptions.length > 0) {
+      setReviewActivityId((prev) => (prev && availableActivityReviewOptions.some((a) => a.id === prev) ? prev : availableActivityReviewOptions[0].id));
+    } else {
+      setReviewActivityId("");
+    }
+    if (!profileDetail.reviewContext.canSubmitProfileReview && availableActivityReviewOptions.length > 0) {
+      setReviewMode("activity");
+    }
+  }, [profileDetail, availableActivityReviewOptions]);
+
+  useEffect(() => {
     applyTheme();
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const authError = params.get("auth_error");
+    const authSuccess = params.get("auth_success");
+    if (!authError && !authSuccess) return;
+    if (authSuccess === "google") {
+      setToast("Google login successful.");
+    } else if (authError) {
+      setToast(`Google login failed: ${authError.replaceAll("_", " ")}`);
+    }
+    params.delete("auth_error");
+    params.delete("auth_success");
+    const query = params.toString();
+    const nextUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+    window.history.replaceState({}, "", nextUrl);
   }, []);
 
   useEffect(() => {
@@ -650,6 +703,10 @@ export default function HangoutApp({
     }
   }
 
+  function startGoogleLogin() {
+    window.location.href = "/api/auth/google/start";
+  }
+
   async function logout() {
     try {
       await apiFetch("/api/auth/logout", { method: "POST" });
@@ -799,10 +856,23 @@ export default function HangoutApp({
       setToast("Rating and comment are required.");
       return;
     }
+    if (reviewMode === "profile" && !profileDetail.reviewContext?.canSubmitProfileReview) {
+      setToast("Profile review is not available.");
+      return;
+    }
+    if (reviewMode === "activity" && !reviewActivityId) {
+      setToast("Choose a shared activity first.");
+      return;
+    }
     try {
       await apiFetch(`/api/profiles/${profileDetail.profile.id}/reviews`, {
         method: "POST",
-        body: JSON.stringify({ rating, comment }),
+        body: JSON.stringify({
+          rating,
+          comment,
+          reviewType: reviewMode,
+          activityId: reviewMode === "activity" ? reviewActivityId : null,
+        }),
       });
       setReviewComment("");
       setReviewRating("5");
@@ -945,8 +1015,24 @@ export default function HangoutApp({
         ) : null}
 
         {!user ? (
-          <section className="mb-5 rounded-xl card-surface p-4">
-            <h2 className="text-sm font-semibold">Sign in to post and join</h2>
+          <section className="mb-5 rounded-xl card-surface p-4 sm:p-5">
+            <h2 className="text-base font-semibold">Sign in to join, post, and review</h2>
+            <p className="mt-1 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+              Joining activities requires an account. Use Google for one-tap onboarding, or email login.
+            </p>
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={startGoogleLogin}
+                className="h-11 px-4 rounded-md border border-slate-300/70 dark:border-slate-700 bg-white/95 dark:bg-slate-900 text-sm font-semibold inline-flex items-center gap-2"
+              >
+                <span className="text-base leading-none">G</span>
+                Continue with Google
+              </button>
+            </div>
+            <div className="mt-4 border-t border-slate-200/70 dark:border-slate-700/70 pt-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Or use email</p>
+            </div>
             <div className="mt-3 flex items-center gap-2">
               <button type="button" onClick={() => setAuthMode("login")} className={`h-9 px-3 rounded-md border text-sm ${authMode === "login" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>
                 Login
@@ -1094,6 +1180,10 @@ export default function HangoutApp({
                               <button type="button" onClick={(e) => { e.stopPropagation(); void leaveActivity(item.id); }} className="h-9 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 text-sm">
                                 Leave
                               </button>
+                            ) : !user ? (
+                              <button type="button" disabled className="h-9 px-3 rounded-md text-sm font-medium opacity-70 cursor-not-allowed border border-slate-300/70 dark:border-slate-700">
+                                Login to Join
+                              </button>
                             ) : (
                               <button type="button" disabled={isFull} onClick={(e) => { e.stopPropagation(); void joinActivity(item.id); }} className={`h-9 px-3 rounded-md text-sm font-medium ${isFull ? "opacity-50 cursor-not-allowed border border-slate-300/70 dark:border-slate-700" : "bg-slate-900 text-white dark:bg-white dark:text-slate-900"}`}>
                                 {isFull ? "Full" : "Join"}
@@ -1135,6 +1225,10 @@ export default function HangoutApp({
                     {selectedActivity.joined ? (
                       <button type="button" onClick={() => void leaveActivity(selectedActivity.id)} className="h-10 px-4 rounded-md border border-slate-300/70 dark:border-slate-700 text-sm font-medium">
                         Leave Activity
+                      </button>
+                    ) : !user ? (
+                      <button type="button" disabled className="h-10 px-4 rounded-md border border-slate-300/70 dark:border-slate-700 text-sm font-medium opacity-70 cursor-not-allowed">
+                        Login to Join
                       </button>
                     ) : (
                       <button type="button" onClick={() => void joinActivity(selectedActivity.id)} className="h-10 px-4 rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-sm font-medium">
@@ -1236,9 +1330,65 @@ export default function HangoutApp({
                     </section>
                   ) : null}
 
+                  {!user ? (
+                    <section className="rounded-lg border border-slate-300/70 dark:border-slate-700 p-3 space-y-2">
+                      <h3 className="text-sm font-semibold">Reviews require an account</h3>
+                      <p className="text-xs text-slate-600 dark:text-slate-300">Join an activity together first, then review this profile or a specific shared activity.</p>
+                      <button type="button" onClick={startGoogleLogin} className="h-10 px-4 rounded-md border border-slate-300/70 dark:border-slate-700 bg-white/95 dark:bg-slate-900 text-sm font-medium">
+                        Continue with Google
+                      </button>
+                    </section>
+                  ) : null}
+
                   {user && profileDetail.profile.id !== user.id ? (
                     <section className="rounded-lg border border-slate-300/70 dark:border-slate-700 p-3 space-y-3">
                       <h3 className="text-sm font-semibold">Write review</h3>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          disabled={!profileDetail.reviewContext?.canSubmitProfileReview}
+                          onClick={() => setReviewMode("profile")}
+                          className={`h-9 px-3 rounded-md border text-sm ${reviewMode === "profile" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"} ${!profileDetail.reviewContext?.canSubmitProfileReview ? "opacity-60 cursor-not-allowed" : ""}`}
+                        >
+                          Whole Profile
+                        </button>
+                        <button
+                          type="button"
+                          disabled={availableActivityReviewOptions.length === 0}
+                          onClick={() => setReviewMode("activity")}
+                          className={`h-9 px-3 rounded-md border text-sm ${reviewMode === "activity" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"} ${availableActivityReviewOptions.length === 0 ? "opacity-60 cursor-not-allowed" : ""}`}
+                        >
+                          Specific Activity
+                        </button>
+                      </div>
+                      {reviewMode === "profile" ? (
+                        <p className="text-xs text-slate-600 dark:text-slate-300">
+                          {profileDetail.reviewContext?.canSubmitProfileReview
+                            ? "This posts one overall profile review."
+                            : profileDetail.reviewContext?.hasProfileReview
+                              ? "You already posted a profile review."
+                              : "Profile review unlocks after you join at least one activity together."}
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          <select
+                            value={reviewActivityId}
+                            onChange={(e) => setReviewActivityId(e.target.value)}
+                            disabled={availableActivityReviewOptions.length === 0}
+                            className="h-10 w-full px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent text-sm disabled:opacity-60"
+                          >
+                            {availableActivityReviewOptions.length === 0 ? (
+                              <option value="">No shared activities available</option>
+                            ) : null}
+                            {availableActivityReviewOptions.map((activity) => (
+                              <option key={activity.id} value={activity.id}>
+                                {activity.title} - {activity.location}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-slate-600 dark:text-slate-300">Only people who joined the same activity can post this review.</p>
+                        </div>
+                      )}
                       <div className="grid grid-cols-[120px_1fr] gap-2">
                         <select value={reviewRating} onChange={(e) => setReviewRating(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent">
                           <option value="5">5 stars</option>
@@ -1249,7 +1399,12 @@ export default function HangoutApp({
                         </select>
                         <input value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Your comment" />
                       </div>
-                      <button type="button" onClick={() => void postReview()} className="h-10 px-4 rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-sm font-medium">
+                      <button
+                        type="button"
+                        onClick={() => void postReview()}
+                        disabled={reviewMode === "profile" ? !profileDetail.reviewContext?.canSubmitProfileReview : availableActivityReviewOptions.length === 0}
+                        className="h-10 px-4 rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
                         Post Review
                       </button>
                     </section>
@@ -1282,6 +1437,9 @@ export default function HangoutApp({
                             <p className="text-sm font-semibold">{review.author?.displayName ?? "User"}</p>
                             <p className="text-xs text-slate-500">{review.rating}/5</p>
                           </div>
+                          <p className="mt-1 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            {review.reviewType === "activity" ? `Activity review${review.activityTitle ? ` - ${review.activityTitle}` : ""}` : "Whole profile review"}
+                          </p>
                           <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{review.comment}</p>
                           <p className="mt-1 text-xs text-slate-500">{formatWhen(review.createdAt)}</p>
                         </article>
