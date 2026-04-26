@@ -320,6 +320,8 @@ export default function HangoutApp({
   const userId = user?.id ?? null;
 
   const [tab, setTab] = useState<"map" | "profiles">("map");
+  const [mobileMapPane, setMobileMapPane] = useState<"create" | "feed" | "details">("feed");
+  const [mobileProfilesPane, setMobileProfilesPane] = useState<"list" | "detail">("list");
   const [toast, setToast] = useState<string | null>(null);
   const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
 
@@ -453,6 +455,19 @@ export default function HangoutApp({
     const nextUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
     window.history.replaceState({}, "", nextUrl);
   }, []);
+
+  useEffect(() => {
+    if (tab !== "map") return;
+    const map = mapRef.current;
+    if (!map || !window.google?.maps) return;
+    window.setTimeout(() => {
+      const mapsWithEvent = window.google?.maps as unknown as { event?: { trigger?: (target: GoogleMap, eventName: string) => void } };
+      mapsWithEvent.event?.trigger?.(map, "resize");
+      if (selectedActivity && typeof selectedActivity.lat === "number" && typeof selectedActivity.lng === "number") {
+        map.panTo({ lat: selectedActivity.lat, lng: selectedActivity.lng });
+      }
+    }, 120);
+  }, [tab, selectedActivity]);
 
   useEffect(() => {
     if (!toast) return;
@@ -978,12 +993,18 @@ export default function HangoutApp({
 
   function switchTab(nextTab: "map" | "profiles") {
     setTab(nextTab);
+    if (nextTab === "map") setMobileMapPane("feed");
+    if (nextTab === "profiles") setMobileProfilesPane("list");
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
         const target = nextTab === "map" ? mapSectionRef.current : profilesSectionRef.current;
         target?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     });
+  }
+
+  function isMobileViewport(): boolean {
+    return typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
   }
 
   return (
@@ -1103,9 +1124,17 @@ export default function HangoutApp({
           </section>
         )}
 
-        {tab === "map" ? (
+        <div className={tab === "map" ? "" : "hidden"} aria-hidden={tab !== "map"}>
           <div ref={mapSectionRef} className="grid grid-cols-1 xl:grid-cols-[340px_1fr_320px] gap-4">
-            <section className="rounded-xl card-surface p-4">
+            <section className="sm:hidden rounded-xl card-surface p-2.5">
+              <div className="grid grid-cols-3 gap-2">
+                <button type="button" onClick={() => setMobileMapPane("create")} className={`h-9 rounded-md text-xs font-medium border ${mobileMapPane === "create" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>Create</button>
+                <button type="button" onClick={() => setMobileMapPane("feed")} className={`h-9 rounded-md text-xs font-medium border ${mobileMapPane === "feed" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>Feed</button>
+                <button type="button" onClick={() => setMobileMapPane("details")} className={`h-9 rounded-md text-xs font-medium border ${mobileMapPane === "details" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>Details</button>
+              </div>
+            </section>
+
+            <section className={`rounded-xl card-surface p-4 ${mobileMapPane !== "create" ? "hidden sm:block" : ""}`}>
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold">Create Post</h2>
                 <button type="button" onClick={resetCreateForm} className="text-xs text-slate-600 dark:text-slate-300">
@@ -1147,7 +1176,7 @@ export default function HangoutApp({
               </div>
             </section>
 
-            <section className="rounded-xl card-surface overflow-hidden">
+            <section className={`rounded-xl card-surface overflow-hidden ${mobileMapPane !== "feed" ? "hidden sm:block" : ""}`}>
               <div className="p-4 border-b border-slate-300/60 dark:border-slate-700/70">
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-2">
                   <input value={search} onChange={(e) => setSearch(e.target.value)} type="search" placeholder="Search posts, location, host" className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent text-sm" />
@@ -1192,7 +1221,10 @@ export default function HangoutApp({
                         key={item.id}
                         role="button"
                         tabIndex={0}
-                        onClick={() => setSelectedActivityId(item.id)}
+                        onClick={() => {
+                          setSelectedActivityId(item.id);
+                          if (isMobileViewport()) setMobileMapPane("details");
+                        }}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
@@ -1252,7 +1284,7 @@ export default function HangoutApp({
               </div>
             </section>
 
-            <section className="rounded-xl card-surface p-4">
+            <section className={`rounded-xl card-surface p-4 ${mobileMapPane !== "details" ? "hidden sm:block" : ""}`}>
               <h2 className="text-sm font-semibold">Post Details</h2>
               {!selectedActivity ? (
                 <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">Select a post from the map feed.</p>
@@ -1305,9 +1337,17 @@ export default function HangoutApp({
               )}
             </section>
           </div>
-        ) : (
+        </div>
+        <div className={tab === "profiles" ? "" : "hidden"} aria-hidden={tab !== "profiles"}>
           <div ref={profilesSectionRef} className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-4">
-            <section className="rounded-xl card-surface p-4">
+            <section className="sm:hidden rounded-xl card-surface p-2.5">
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setMobileProfilesPane("list")} className={`h-9 rounded-md text-xs font-medium border ${mobileProfilesPane === "list" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>People</button>
+                <button type="button" onClick={() => setMobileProfilesPane("detail")} className={`h-9 rounded-md text-xs font-medium border ${mobileProfilesPane === "detail" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>Profile</button>
+              </div>
+            </section>
+
+            <section className={`rounded-xl card-surface p-4 ${mobileProfilesPane !== "list" ? "hidden sm:block" : ""}`}>
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold">Community</h2>
                 <button type="button" onClick={() => void refreshProfiles()} className="text-xs text-slate-600 dark:text-slate-300">
@@ -1316,7 +1356,7 @@ export default function HangoutApp({
               </div>
               <div className="mt-3 space-y-2 max-h-[760px] overflow-auto">
                 {profiles.map((profile) => (
-                  <button key={profile.id} type="button" onClick={() => setSelectedProfileId(profile.id)} className={`w-full text-left p-3 rounded-md border ${selectedProfileId === profile.id ? "border-slate-900 dark:border-white" : "border-slate-300/70 dark:border-slate-700"} hover:bg-slate-100/50 dark:hover:bg-slate-800/40`}>
+                  <button key={profile.id} type="button" onClick={() => { setSelectedProfileId(profile.id); if (isMobileViewport()) setMobileProfilesPane("detail"); }} className={`w-full text-left p-3 rounded-md border ${selectedProfileId === profile.id ? "border-slate-900 dark:border-white" : "border-slate-300/70 dark:border-slate-700"} hover:bg-slate-100/50 dark:hover:bg-slate-800/40`}>
                     <div className="flex items-center gap-2">
                       <Avatar name={profile.displayName} avatarUrl={profile.avatarUrl} size="sm" />
                       <div className="min-w-0">
@@ -1338,7 +1378,7 @@ export default function HangoutApp({
               </div>
             </section>
 
-            <section className="rounded-xl card-surface p-4">
+            <section className={`rounded-xl card-surface p-4 ${mobileProfilesPane !== "detail" ? "hidden sm:block" : ""}`}>
               {loadingProfile ? (
                 <p className="text-sm text-slate-600 dark:text-slate-300">Loading profile...</p>
               ) : !profileDetail ? (
@@ -1534,7 +1574,7 @@ export default function HangoutApp({
               )}
             </section>
           </div>
-        )}
+        </div>
       </main>
 
       <nav className="sm:hidden fixed bottom-0 inset-x-0 z-30 safe-bottom border-t border-slate-300/50 dark:border-slate-700 bg-white/88 dark:bg-slate-950/88 backdrop-blur-xl">
