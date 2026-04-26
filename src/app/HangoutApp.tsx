@@ -210,6 +210,7 @@ function applyTheme() {
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     headers: { "Content-Type": "application/json" },
+    cache: options?.cache ?? "no-store",
     ...options,
   });
   const text = await response.text();
@@ -278,6 +279,7 @@ export default function HangoutApp({
   const [activities, setActivities] = useState<Activity[]>(initialActivities);
   const [backendOk] = useState(initialBackendOk);
   const [user, setUser] = useState<User | null>(initialUser);
+  const userId = user?.id ?? null;
 
   const [tab, setTab] = useState<"map" | "profiles">("map");
   const [toast, setToast] = useState<string | null>(null);
@@ -381,7 +383,7 @@ export default function HangoutApp({
   useEffect(() => {
     const target = selectedProfileId ?? user?.id ?? null;
     if (!target) return;
-    void loadProfile(target);
+    void loadProfile(target).catch(() => {});
   }, [selectedProfileId, user?.id]);
 
   useEffect(() => {
@@ -474,13 +476,78 @@ export default function HangoutApp({
     };
   }, []);
 
-  async function refreshActivities() {
-    const rows = await apiFetch<Activity[]>("/api/activities");
-    setActivities(rows);
-    if (!selectedActivityId && rows.length > 0) setSelectedActivityId(rows[0].id);
+  useEffect(() => {
+    const pullLatest = () => {
+      void (async () => {
+        try {
+          const rows = await apiFetch<Activity[]>("/api/activities");
+          setActivities(rows);
+          setSelectedActivityId((prev) => prev ?? rows[0]?.id ?? null);
+        } catch {
+          // Silent background refresh.
+        }
+      })();
+
+      void (async () => {
+        try {
+          const rows = await apiFetch<ProfileSummary[]>("/api/profiles");
+          setProfiles(rows);
+          setSelectedProfileId((prev) => {
+            if (prev) return prev;
+            if (!rows[0]) return null;
+            return userId ? rows.find((r) => r.id === userId)?.id ?? rows[0].id : rows[0].id;
+          });
+        } catch {
+          // Silent background refresh.
+        }
+      })();
+
+      const target = selectedProfileId ?? userId;
+      if (!target) return;
+      void (async () => {
+        try {
+          const detail = await apiFetch<ProfileDetail>(`/api/profiles/${target}`);
+          setProfileDetail(detail);
+        } catch {
+          // Silent background refresh.
+        }
+      })();
+    };
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      pullLatest();
+    }, 10000);
+
+    const onFocusOrVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      pullLatest();
+    };
+
+    window.addEventListener("focus", onFocusOrVisible);
+    document.addEventListener("visibilitychange", onFocusOrVisible);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", onFocusOrVisible);
+      document.removeEventListener("visibilitychange", onFocusOrVisible);
+    };
+  }, [selectedProfileId, userId]);
+
+  async function refreshActivities(options?: { silent?: boolean }) {
+    try {
+      const rows = await apiFetch<Activity[]>("/api/activities");
+      setActivities(rows);
+      if (!selectedActivityId && rows.length > 0) setSelectedActivityId(rows[0].id);
+    } catch (error) {
+      if (!options?.silent) {
+        setToast(error instanceof Error ? error.message : "Could not refresh activities");
+      }
+      throw error;
+    }
   }
 
-  async function refreshProfiles() {
+  async function refreshProfiles(options?: { silent?: boolean }) {
     try {
       const rows = await apiFetch<ProfileSummary[]>("/api/profiles");
       setProfiles(rows);
@@ -489,17 +556,23 @@ export default function HangoutApp({
         setSelectedProfileId(preferred.id);
       }
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not load profiles");
+      if (!options?.silent) {
+        setToast(error instanceof Error ? error.message : "Could not load profiles");
+      }
+      throw error;
     }
   }
 
-  async function loadProfile(id: string) {
+  async function loadProfile(id: string, options?: { silent?: boolean }) {
     try {
       setLoadingProfile(true);
       const detail = await apiFetch<ProfileDetail>(`/api/profiles/${id}`);
       setProfileDetail(detail);
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not load profile");
+      if (!options?.silent) {
+        setToast(error instanceof Error ? error.message : "Could not load profile");
+      }
+      throw error;
     } finally {
       setLoadingProfile(false);
     }
