@@ -824,11 +824,27 @@ export default function HangoutApp({
           limit: limitNum,
         }),
       });
-      setActivities((prev) => [created, ...prev]);
+      setActivities((prev) => [created, ...prev.filter((a) => a.id !== created.id)]);
       setSelectedActivityId(created.id);
-      setToast("Activity posted.");
       resetCreateForm();
+      await refreshActivities();
       await refreshProfiles();
+      const nowRows = await apiFetch<Activity[]>("/api/activities");
+      const persisted = nowRows.some((row) => row.id === created.id);
+      if (!persisted) {
+        setToast("Could not confirm the post was saved. Please refresh and try again.");
+        return;
+      }
+      const hiddenByFilters =
+        (search.trim() && !`${created.title} ${created.description ?? ""} ${created.location} ${created.creatorName} ${created.type}`.toLowerCase().includes(search.trim().toLowerCase())) ||
+        (filterType !== "all" && created.type !== filterType) ||
+        (onlyOpen && ((created.limit !== null && created.going >= created.limit) || isClosedByWhen(created.whenISO)));
+      if (hiddenByFilters) {
+        setToast("Activity posted. Clear filters/search to see it in the feed.");
+      } else {
+        setToast("Activity posted.");
+      }
+      if (isMobileViewport()) setMobileMapPane("details");
     } catch (error) {
       setToast(error instanceof Error ? error.message : "Could not post activity");
     }
