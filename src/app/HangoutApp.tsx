@@ -366,6 +366,8 @@ export default function HangoutApp({
 
   const mapElRef = useRef<HTMLDivElement | null>(null);
   const pickerMapElRef = useRef<HTMLDivElement | null>(null);
+  const mapSectionRef = useRef<HTMLDivElement | null>(null);
+  const profilesSectionRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<GoogleMap | null>(null);
   const pickerMapRef = useRef<GoogleMap | null>(null);
   const pickerMarkerRef = useRef<GoogleMarker | null>(null);
@@ -948,6 +950,16 @@ export default function HangoutApp({
   const mapEnabled = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
   const isOwnSelectedActivity = !!(selectedActivity && user?.id && selectedActivity.creatorId === user.id);
 
+  function switchTab(nextTab: "map" | "profiles") {
+    setTab(nextTab);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const target = nextTab === "map" ? mapSectionRef.current : profilesSectionRef.current;
+        target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+  }
+
   return (
     <div className="min-h-screen text-slate-900 dark:text-slate-100">
       <header className="sticky top-0 z-30 safe-top border-b border-slate-300/40 dark:border-slate-700/60 bg-white/70 dark:bg-slate-950/65 backdrop-blur-xl">
@@ -980,15 +992,15 @@ export default function HangoutApp({
 
       <main className="max-w-7xl mx-auto px-4 py-5 safe-bottom fade-up">
         <div className="hidden sm:flex items-center gap-2 mb-4">
-          <button type="button" onClick={() => setTab("map")} className={`h-10 px-4 rounded-md text-sm font-medium border ${tab === "map" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
+          <button type="button" onClick={() => switchTab("map")} className={`h-10 px-4 rounded-md text-sm font-medium border ${tab === "map" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
             Map + Posts
           </button>
-          <button type="button" onClick={() => setTab("profiles")} className={`h-10 px-4 rounded-md text-sm font-medium border ${tab === "profiles" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
+          <button type="button" onClick={() => switchTab("profiles")} className={`h-10 px-4 rounded-md text-sm font-medium border ${tab === "profiles" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
             Profiles
           </button>
         </div>
 
-        <section className="mb-5 rounded-2xl card-surface p-4 sm:p-5">
+        <section className="hidden sm:block mb-5 rounded-2xl card-surface p-4 sm:p-5">
           <div className="flex items-end justify-between gap-4 flex-wrap">
             <div>
               <h2 data-heading="true" className="text-xl sm:text-2xl font-semibold">Find your next plan in minutes</h2>
@@ -1066,7 +1078,7 @@ export default function HangoutApp({
         )}
 
         {tab === "map" ? (
-          <div className="grid grid-cols-1 xl:grid-cols-[340px_1fr_320px] gap-4">
+          <div ref={mapSectionRef} className="grid grid-cols-1 xl:grid-cols-[340px_1fr_320px] gap-4">
             <section className="rounded-xl card-surface p-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold">Create Post</h2>
@@ -1161,7 +1173,7 @@ export default function HangoutApp({
                             setSelectedActivityId(item.id);
                           }
                         }}
-                        className={`p-4 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 ${
+                        className={`p-3 sm:p-4 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 ${
                           isClosed
                             ? selected
                               ? "bg-rose-100/85 dark:bg-rose-950/35 border-l-4 border-rose-500"
@@ -1171,36 +1183,37 @@ export default function HangoutApp({
                               : "hover:bg-slate-100/60 dark:hover:bg-slate-800/40"
                         }`}
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="mb-2 overflow-hidden rounded-lg border border-slate-200/70 dark:border-slate-700/70">
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-2 hidden sm:block overflow-hidden rounded-lg border border-slate-200/70 dark:border-slate-700/70">
                               <Image src={TYPE_VISUAL[item.type]} alt={`${TYPE_META[item.type].label} activity mood`} width={1200} height={800} className="h-20 w-full object-cover" />
                             </div>
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className={`inline-flex h-6 items-center rounded-md px-2 text-xs font-medium ${TYPE_META[item.type].chip}`}>{TYPE_META[item.type].label}</span>
-                              <span className="text-xs text-slate-500 dark:text-slate-300">by {item.creatorName}</span>
+                              <span className="text-xs text-slate-500 dark:text-slate-300">Host: {item.creatorName}</span>
+                              {isClosed ? <span className="inline-flex h-6 items-center rounded-md px-2 text-[11px] font-semibold bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200">Closed</span> : null}
                             </div>
-                            <h3 className="mt-2 text-sm font-semibold break-words">{item.title}</h3>
+                            <h3 className="mt-1 text-sm sm:text-base font-semibold break-words">{item.title}</h3>
                             <p className="text-xs text-slate-500 dark:text-slate-300">{item.location} • {formatWhen(item.whenISO)}</p>
                             <p className="text-xs text-slate-500 dark:text-slate-300">Going {item.going}{item.limit ? `/${item.limit}` : ""}</p>
-                            {item.description ? <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{item.description}</p> : null}
+                            {item.description ? <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] overflow-hidden">{item.description}</p> : null}
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex items-center gap-2 shrink-0 sm:self-start">
                             {item.joined ? (
-                              <button type="button" onClick={(e) => { e.stopPropagation(); void leaveActivity(item.id); }} className="h-9 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 text-sm">
+                              <button type="button" onClick={(e) => { e.stopPropagation(); void leaveActivity(item.id); }} className="h-8 sm:h-9 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 text-xs sm:text-sm">
                                 Leave
                               </button>
                             ) : !user ? (
-                              <button type="button" disabled className="h-9 px-3 rounded-md text-sm font-medium opacity-70 cursor-not-allowed border border-slate-300/70 dark:border-slate-700">
+                              <button type="button" disabled className="h-8 sm:h-9 px-3 rounded-md text-xs sm:text-sm font-medium opacity-70 cursor-not-allowed border border-slate-300/70 dark:border-slate-700">
                                 Login to Join
                               </button>
                             ) : (
-                              <button type="button" disabled={isFull || isClosed} onClick={(e) => { e.stopPropagation(); void joinActivity(item.id); }} className={`h-9 px-3 rounded-md text-sm font-medium ${isFull || isClosed ? "opacity-50 cursor-not-allowed border border-slate-300/70 dark:border-slate-700" : "bg-slate-900 text-white dark:bg-white dark:text-slate-900"}`}>
+                              <button type="button" disabled={isFull || isClosed} onClick={(e) => { e.stopPropagation(); void joinActivity(item.id); }} className={`h-8 sm:h-9 px-3 rounded-md text-xs sm:text-sm font-medium ${isFull || isClosed ? "opacity-50 cursor-not-allowed border border-slate-300/70 dark:border-slate-700" : "bg-slate-900 text-white dark:bg-white dark:text-slate-900"}`}>
                                 {isClosed ? "Closed" : isFull ? "Full" : "Join"}
                               </button>
                             )}
                             {isMine ? (
-                              <button type="button" onClick={(e) => { e.stopPropagation(); void deleteActivity(item.id); }} className="h-9 px-3 rounded-md border border-rose-300/70 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-sm">
+                              <button type="button" onClick={(e) => { e.stopPropagation(); void deleteActivity(item.id); }} className="h-8 sm:h-9 px-3 rounded-md border border-rose-300/70 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs sm:text-sm">
                                 Delete
                               </button>
                             ) : null}
@@ -1218,7 +1231,7 @@ export default function HangoutApp({
               {!selectedActivity ? (
                 <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">Select a post from the map feed.</p>
               ) : (
-                <div className="mt-3 space-y-2 text-sm">
+                <div className="mt-3 space-y-3 text-sm">
                   {new Date(selectedActivity.whenISO).getTime() <= Date.now() ? (
                     <p className="inline-flex rounded-md bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200 px-2 py-1 text-xs font-semibold border border-rose-300/60 dark:border-rose-700/60">
                       Closed
@@ -1228,14 +1241,16 @@ export default function HangoutApp({
                     <Image src={TYPE_VISUAL[selectedActivity.type]} alt={`${TYPE_META[selectedActivity.type].label} activity visual`} width={1200} height={800} className="h-44 w-full object-cover" />
                   </div>
                   <h3 className="text-base font-semibold">{selectedActivity.title}</h3>
-                  <p className="text-slate-600 dark:text-slate-300">Host: {selectedActivity.creatorName}</p>
-                  <p className="text-slate-600 dark:text-slate-300">Location: {selectedActivity.location}</p>
-                  <p className="text-slate-600 dark:text-slate-300">Time: {formatWhen(selectedActivity.whenISO)}</p>
-                  <p className="text-slate-600 dark:text-slate-300">Going: {selectedActivity.going}{selectedActivity.limit ? `/${selectedActivity.limit}` : ""}</p>
+                  <div className="grid grid-cols-[66px_1fr] gap-y-1 text-xs sm:text-sm">
+                    <p className="text-slate-500 dark:text-slate-400">Host</p><p>{selectedActivity.creatorName}</p>
+                    <p className="text-slate-500 dark:text-slate-400">Where</p><p>{selectedActivity.location}</p>
+                    <p className="text-slate-500 dark:text-slate-400">When</p><p>{formatWhen(selectedActivity.whenISO)}</p>
+                    <p className="text-slate-500 dark:text-slate-400">Going</p><p>{selectedActivity.going}{selectedActivity.limit ? `/${selectedActivity.limit}` : ""}</p>
+                  </div>
                   {selectedActivity.lat !== null && selectedActivity.lng !== null ? (
                     <p className="text-slate-500 dark:text-slate-300 text-xs">Coords: {selectedActivity.lat.toFixed(5)}, {selectedActivity.lng.toFixed(5)}</p>
                   ) : null}
-                  {selectedActivity.description ? <p className="text-slate-600 dark:text-slate-300">{selectedActivity.description}</p> : null}
+                  {selectedActivity.description ? <p className="text-slate-600 dark:text-slate-300 rounded-md bg-slate-100/70 dark:bg-slate-800/40 p-2">{selectedActivity.description}</p> : null}
                   <div className="pt-2 flex items-center gap-2 flex-wrap">
                     {selectedActivity.joined ? (
                       <button type="button" onClick={() => void leaveActivity(selectedActivity.id)} className="h-10 px-4 rounded-md border border-slate-300/70 dark:border-slate-700 text-sm font-medium">
@@ -1265,7 +1280,7 @@ export default function HangoutApp({
             </section>
           </div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-4">
+          <div ref={profilesSectionRef} className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-4">
             <section className="rounded-xl card-surface p-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold">Community</h2>
@@ -1498,10 +1513,10 @@ export default function HangoutApp({
 
       <nav className="sm:hidden fixed bottom-0 inset-x-0 z-30 safe-bottom border-t border-slate-300/50 dark:border-slate-700 bg-white/88 dark:bg-slate-950/88 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 pt-2 flex items-center gap-2">
-          <button type="button" onClick={() => setTab("map")} className={`h-11 flex-1 rounded-md text-sm font-medium border ${tab === "map" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
+          <button type="button" onClick={() => switchTab("map")} className={`h-11 flex-1 rounded-md text-sm font-medium border ${tab === "map" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
             Map
           </button>
-          <button type="button" onClick={() => setTab("profiles")} className={`h-11 flex-1 rounded-md text-sm font-medium border ${tab === "profiles" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
+          <button type="button" onClick={() => switchTab("profiles")} className={`h-11 flex-1 rounded-md text-sm font-medium border ${tab === "profiles" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
             Profiles
           </button>
           {installPromptEvent ? (

@@ -13,8 +13,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-manrope), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  --font-heading: var(--font-playfair), Georgia, serif;
+  --font-sans: var(--font-roboto), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-heading: var(--font-roboto), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "Cascadia Mono", "Consolas", "Courier New", monospace;
 }
 
@@ -48,7 +48,7 @@ h2,
 h3,
 [data-heading="true"] {
   font-family: var(--font-heading);
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
 }
 
 @media (max-width: 640px) {
