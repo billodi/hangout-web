@@ -1161,7 +1161,15 @@ export default function HangoutApp({
                             setSelectedActivityId(item.id);
                           }
                         }}
-                        className={`p-4 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 ${selected ? "bg-slate-100/80 dark:bg-slate-800/70" : "hover:bg-slate-100/60 dark:hover:bg-slate-800/40"}`}
+                        className={`p-4 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 ${
+                          isClosed
+                            ? selected
+                              ? "bg-rose-100/85 dark:bg-rose-950/35 border-l-4 border-rose-500"
+                              : "bg-rose-50/70 dark:bg-rose-950/20 hover:bg-rose-100/70 dark:hover:bg-rose-950/30 border-l-4 border-rose-400/70"
+                            : selected
+                              ? "bg-slate-100/80 dark:bg-slate-800/70"
+                              : "hover:bg-slate-100/60 dark:hover:bg-slate-800/40"
+                        }`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
@@ -1212,7 +1220,9 @@ export default function HangoutApp({
               ) : (
                 <div className="mt-3 space-y-2 text-sm">
                   {new Date(selectedActivity.whenISO).getTime() <= Date.now() ? (
-                    <p className="inline-flex rounded-md bg-slate-200/70 dark:bg-slate-800 px-2 py-1 text-xs font-medium">Closed</p>
+                    <p className="inline-flex rounded-md bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200 px-2 py-1 text-xs font-semibold border border-rose-300/60 dark:border-rose-700/60">
+                      Closed
+                    </p>
                   ) : null}
                   <div className="overflow-hidden rounded-lg border border-slate-200/70 dark:border-slate-700/70">
                     <Image src={TYPE_VISUAL[selectedActivity.type]} alt={`${TYPE_META[selectedActivity.type].label} activity visual`} width={1200} height={800} className="h-44 w-full object-cover" />
