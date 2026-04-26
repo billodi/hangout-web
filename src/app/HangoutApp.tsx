@@ -422,6 +422,22 @@ export default function HangoutApp({
   }, []);
 
   useEffect(() => {
+    void (async () => {
+      try {
+        const me = await apiFetch<{ user: User | null }>("/api/auth/me", { cache: "no-store" });
+        if (!me.user) return;
+        const meUser = me.user;
+        setUser((prev) => prev ?? meUser);
+        setEditName((prev) => (prev ? prev : meUser.displayName));
+        setEditBio((prev) => (prev ? prev : meUser.bio ?? ""));
+        setEditAvatarUrl((prev) => (prev ? prev : meUser.avatarUrl ?? ""));
+      } catch {
+        // Keep existing local auth state on transient failure.
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const authError = params.get("auth_error");
     const authSuccess = params.get("auth_success");
@@ -559,6 +575,16 @@ export default function HangoutApp({
 
   useEffect(() => {
     const pullLatest = () => {
+      void (async () => {
+        try {
+          const me = await apiFetch<{ user: User | null }>("/api/auth/me", { cache: "no-store" });
+          if (!me.user) return;
+          setUser((prev) => prev ?? me.user);
+        } catch {
+          // Keep current auth state if check fails.
+        }
+      })();
+
       void (async () => {
         try {
           const rows = await apiFetch<Activity[]>("/api/activities");
