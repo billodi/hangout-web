@@ -148,9 +148,9 @@ declare global {
 const THEME_KEY = "hangout.theme";
 
 const TYPE_META: Record<ActivityType, { label: string; chip: string }> = {
-  chill: { label: "Chill", chip: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200" },
-  active: { label: "Active", chip: "bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200" },
-  help: { label: "Help", chip: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200" },
+  chill: { label: "Chill", chip: "chip chip-chill" },
+  active: { label: "Active", chip: "chip chip-active" },
+  help: { label: "Help", chip: "chip chip-help" },
 };
 
 let mapsLoader: Promise<GoogleMapsApi | null> | null = null;
@@ -854,26 +854,26 @@ export default function HangoutApp({
 
   return (
     <div className="min-h-screen text-slate-900 dark:text-slate-100">
-      <header className="sticky top-0 z-30 safe-top border-b border-slate-300/40 dark:border-slate-700/60 bg-white/60 dark:bg-slate-950/65 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 safe-top border-b border-slate-300/40 dark:border-slate-700/60 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <h1 className="text-xl font-semibold tracking-tight truncate">Hangout Map</h1>
-              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 truncate">Clean map feed for local tasks and meetups.</p>
+              <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#fffa00] via-[#ff3b83] to-[#8b5cf6]">Hangout</h1>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 truncate">Discover local activities & meet new people</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {installPromptEvent ? (
-                <button type="button" onClick={() => void installApp()} className="hidden sm:inline-flex h-9 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900 text-sm font-medium">
-                  Install App
+                <button type="button" onClick={() => void installApp()} className="hidden sm:inline-flex h-9 px-3 rounded-full border border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900 text-sm font-medium">
+                  Install
                 </button>
               ) : null}
-              <button type="button" onClick={cycleTheme} className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900">
+              <button type="button" onClick={cycleTheme} className="h-9 w-9 inline-flex items-center justify-center rounded-full border border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"></path>
                 </svg>
               </button>
               {user ? (
-                <button type="button" onClick={() => void logout()} className="h-9 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900 text-sm font-medium">
+                <button type="button" onClick={() => void logout()} className="h-9 px-4 rounded-full border border-slate-300/70 dark:border-slate-700 bg-gradient-to-r from-[#ff3b83] to-[#fffa00] text-white text-sm font-medium">
                   Logout
                 </button>
               ) : null}
@@ -884,11 +884,11 @@ export default function HangoutApp({
 
       <main className="max-w-7xl mx-auto px-4 py-5 safe-bottom">
         <div className="hidden sm:flex items-center gap-2 mb-4">
-          <button type="button" onClick={() => setTab("map")} className={`h-10 px-4 rounded-md text-sm font-medium border ${tab === "map" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
-            Map + Posts
+          <button type="button" onClick={() => setTab("map")} className={`h-10 px-5 rounded-full text-sm font-semibold border transition-all duration-300 ${tab === "map" ? "bg-gradient-to-r from-[#fffa00] to-[#ff3b83] text-black border-transparent shadow-lg" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
+            🗺️ Map
           </button>
-          <button type="button" onClick={() => setTab("profiles")} className={`h-10 px-4 rounded-md text-sm font-medium border ${tab === "profiles" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
-            Profiles
+          <button type="button" onClick={() => setTab("profiles")} className={`h-10 px-5 rounded-full text-sm font-semibold border transition-all duration-300 ${tab === "profiles" ? "bg-gradient-to-r from-[#00d4ff] to-[#8b5cf6] text-white border-transparent shadow-lg" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
+            👥 People
           </button>
         </div>
 
@@ -902,21 +902,21 @@ export default function HangoutApp({
           <section className="mb-5 rounded-xl card-surface p-4">
             <h2 className="text-sm font-semibold">Sign in to post and join</h2>
             <div className="mt-3 flex items-center gap-2">
-              <button type="button" onClick={() => setAuthMode("login")} className={`h-9 px-3 rounded-md border text-sm ${authMode === "login" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>
+              <button type="button" onClick={() => setAuthMode("login")} className={`h-9 px-4 rounded-full border text-sm font-medium transition-all ${authMode === "login" ? "bg-gradient-to-r from-[#fffa00] to-[#ff3b83] text-black border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>
                 Login
               </button>
-              <button type="button" onClick={() => setAuthMode("signup")} className={`h-9 px-3 rounded-md border text-sm ${authMode === "signup" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>
+              <button type="button" onClick={() => setAuthMode("signup")} className={`h-9 px-4 rounded-full border text-sm font-medium transition-all ${authMode === "signup" ? "bg-gradient-to-r from-[#fffa00] to-[#ff3b83] text-black border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>
                 Signup
               </button>
             </div>
             <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-3">
               {authMode === "signup" ? (
-                <input value={authName} onChange={(e) => setAuthName(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Display name" />
+                <input value={authName} onChange={(e) => setAuthName(e.target.value)} className="input-field h-10" placeholder="Display name" />
               ) : null}
-              <input value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Email" />
-              <input value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} type="password" className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Password" />
-              <button type="button" onClick={() => void handleAuthSubmit()} className="h-10 px-3 rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-sm font-medium">
-                {authMode === "signup" ? "Create Account" : "Login"}
+              <input value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} className="input-field h-10" placeholder="Email" />
+              <input value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} type="password" className="input-field h-10" placeholder="Password" />
+              <button type="button" onClick={() => void handleAuthSubmit()} className="btn-gradient h-10 text-sm font-semibold">
+                {authMode === "signup" ? "Create Account →" : "Welcome Back →"}
               </button>
             </div>
           </section>
@@ -936,32 +936,32 @@ export default function HangoutApp({
           <div className="grid grid-cols-1 xl:grid-cols-[340px_1fr_320px] gap-4">
             <section className="rounded-xl card-surface p-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold">Create Post</h2>
+                <h2 className="text-sm font-semibold">✨ Create Post</h2>
                 <button type="button" onClick={resetCreateForm} className="text-xs text-slate-600 dark:text-slate-300">
                   Reset
                 </button>
               </div>
               <div className="mt-3 space-y-3">
-                <input value={title} onChange={(e) => setTitle(e.target.value)} className="h-10 w-full px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Task or meetup title" />
-                <input value={location} onChange={(e) => setLocation(e.target.value)} className="h-10 w-full px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Location name" />
-                <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full min-h-24 px-3 py-2 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Details" />
+                <input value={title} onChange={(e) => setTitle(e.target.value)} className="input-field h-10 w-full" placeholder="✨ What's the plan?" />
+                <input value={location} onChange={(e) => setLocation(e.target.value)} className="input-field h-10 w-full" placeholder="📍 Where?" />
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="input-field w-full min-h-24 py-3" placeholder="More details..." />
                 <div className="grid grid-cols-2 gap-3">
-                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" />
-                  <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" />
+                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input-field h-10" />
+                  <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="input-field h-10" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <select value={type} onChange={(e) => setType(e.target.value as ActivityType)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent">
-                    <option value="chill">Chill</option>
-                    <option value="active">Active</option>
-                    <option value="help">Help</option>
+                  <select value={type} onChange={(e) => setType(e.target.value as ActivityType)} className="input-field h-10">
+                    <option value="chill">😌 Chill</option>
+                    <option value="active">🏃 Active</option>
+                    <option value="help">🤝 Help</option>
                   </select>
-                  <input value={limit} onChange={(e) => setLimit(e.target.value)} type="number" min={2} max={200} placeholder="Limit optional" className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" />
+                  <input value={limit} onChange={(e) => setLimit(e.target.value)} type="number" min={2} max={200} placeholder="Max people" className="input-field h-10" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <input value={pinLat} onChange={(e) => setPinLat(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Latitude" />
-                  <input value={pinLng} onChange={(e) => setPinLng(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Longitude" />
+                  <input value={pinLat} onChange={(e) => setPinLat(e.target.value)} className="input-field h-10" placeholder="Latitude" />
+                  <input value={pinLng} onChange={(e) => setPinLng(e.target.value)} className="input-field h-10" placeholder="Longitude" />
                 </div>
-                <div className="rounded-lg border border-slate-300/70 dark:border-slate-700 overflow-hidden">
+                <div className="rounded-xl border-2 border-dashed border-slate-300/70 dark:border-slate-700 overflow-hidden">
                   {mapEnabled ? (
                     <div ref={pickerMapElRef} className="h-44 w-full" />
                   ) : (
@@ -970,8 +970,8 @@ export default function HangoutApp({
                     </div>
                   )}
                 </div>
-                <button type="button" onClick={() => void createActivity()} className="h-10 w-full rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-medium text-sm">
-                  Post Activity
+                <button type="button" onClick={() => void createActivity()} className="btn-gradient h-12 w-full font-semibold text-base">
+                  🚀 Post Activity
                 </button>
               </div>
             </section>
@@ -1027,27 +1027,27 @@ export default function HangoutApp({
                             setSelectedActivityId(item.id);
                           }
                         }}
-                        className={`p-4 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 ${selected ? "bg-slate-100/80 dark:bg-slate-800/70" : "hover:bg-slate-100/60 dark:hover:bg-slate-800/40"}`}
+                        className={`p-4 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff3b83]/50 transition-all duration-200 ${selected ? "bg-gradient-to-r from-[#fffa00]/10 to-[#ff3b83]/10 dark:from-[#fffa00]/5 dark:to-[#ff3b83]/5" : "hover:bg-slate-100/60 dark:hover:bg-slate-800/40"}`}
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`inline-flex h-6 items-center rounded-md px-2 text-xs font-medium ${TYPE_META[item.type].chip}`}>{TYPE_META[item.type].label}</span>
-                              <span className="text-xs text-slate-500 dark:text-slate-300">by {item.creatorName}</span>
+                              <span className={`inline-flex h-6 items-center rounded-full px-3 text-xs font-semibold ${TYPE_META[item.type].chip}`}>{TYPE_META[item.type].label}</span>
+                              <span className="text-xs text-slate-500 dark:text-slate-300">👤 {item.creatorName}</span>
                             </div>
-                            <h3 className="mt-2 text-sm font-semibold break-words">{item.title}</h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-300">{item.location} • {formatWhen(item.whenISO)}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-300">Going {item.going}{item.limit ? `/${item.limit}` : ""}</p>
-                            {item.description ? <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{item.description}</p> : null}
+                            <h3 className="mt-2 text-base font-bold break-words">{item.title}</h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">📍 {item.location} • 🕐 {formatWhen(item.whenISO)}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">👥 {item.going}{item.limit ? `/${item.limit}` : ""} going</p>
+                            {item.description ? <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 line-clamp-2">{item.description}</p> : null}
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex flex-col gap-2 shrink-0">
                             {item.joined ? (
-                              <button type="button" onClick={(e) => { e.stopPropagation(); void leaveActivity(item.id); }} className="h-9 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 text-sm">
-                                Leave
+                              <button type="button" onClick={(e) => { e.stopPropagation(); void leaveActivity(item.id); }} className="h-9 px-4 rounded-full border-2 border-[#ff3b83] text-[#ff3b83] text-sm font-semibold">
+                                ✌️ Out
                               </button>
                             ) : (
-                              <button type="button" disabled={isFull} onClick={(e) => { e.stopPropagation(); void joinActivity(item.id); }} className={`h-9 px-3 rounded-md text-sm font-medium ${isFull ? "opacity-50 cursor-not-allowed border border-slate-300/70 dark:border-slate-700" : "bg-slate-900 text-white dark:bg-white dark:text-slate-900"}`}>
-                                {isFull ? "Full" : "Join"}
+                              <button type="button" disabled={isFull} onClick={(e) => { e.stopPropagation(); void joinActivity(item.id); }} className={`h-9 px-4 rounded-full text-sm font-semibold transition-all ${isFull ? "opacity-50 cursor-not-allowed border border-slate-300/70 dark:border-slate-700" : "bg-gradient-to-r from-[#fffa00] to-[#ff3b83] text-black shadow-lg hover:scale-105"}`}>
+                                {isFull ? "Full 🔒" : "Join 🚀"}
                               </button>
                             )}
                             {isMine ? (

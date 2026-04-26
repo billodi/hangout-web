@@ -6,7 +6,11 @@ import { activityParticipants, activities } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { and, eq, sql } from "drizzle-orm";
 
-export async function POST(_req: Request, ctx: RouteContext<"/api/activities/[id]/leave">) {
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
+export async function POST(_req: Request, ctx: RouteContext) {
   const { id } = await ctx.params;
   const currentUser = await getCurrentUser();
   if (!currentUser) return Response.json({ error: "Login required" }, { status: 401 });

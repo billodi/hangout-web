@@ -7,6 +7,10 @@ import { getCurrentUser } from "@/lib/auth";
 import { computeBadges } from "@/lib/badges";
 import { desc, eq, inArray, sql } from "drizzle-orm";
 
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
 type UpdateProfilePayload = {
   displayName?: unknown;
   bio?: unknown;
@@ -33,7 +37,7 @@ function toNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export async function GET(_req: Request, ctx: RouteContext<"/api/profiles/[id]">) {
+export async function GET(_req: Request, ctx: RouteContext) {
   const { id } = await ctx.params;
   const db = getDb();
   const [profile] = await db
@@ -150,7 +154,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/profiles/[id]">
   });
 }
 
-export async function PATCH(req: Request, ctx: RouteContext<"/api/profiles/[id]">) {
+export async function PATCH(req: Request, ctx: RouteContext) {
   const { id } = await ctx.params;
   const currentUser = await getCurrentUser();
   if (!currentUser) return Response.json({ error: "Login required" }, { status: 401 });

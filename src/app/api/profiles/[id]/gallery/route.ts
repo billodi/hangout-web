@@ -6,6 +6,10 @@ import { galleryEntries } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { desc, eq } from "drizzle-orm";
 
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
 type GalleryPayload = {
   imageUrl?: unknown;
   caption?: unknown;
@@ -36,7 +40,7 @@ function cleanFloat(value: unknown): number | null {
   return n;
 }
 
-export async function GET(_req: Request, ctx: RouteContext<"/api/profiles/[id]/gallery">) {
+export async function GET(_req: Request, ctx: RouteContext) {
   const { id } = await ctx.params;
   const db = getDb();
   const rows = await db
@@ -47,7 +51,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/profiles/[id]/g
   return Response.json(rows);
 }
 
-export async function POST(req: Request, ctx: RouteContext<"/api/profiles/[id]/gallery">) {
+export async function POST(req: Request, ctx: RouteContext) {
   const { id } = await ctx.params;
   const currentUser = await getCurrentUser();
   if (!currentUser) return Response.json({ error: "Login required" }, { status: 401 });

@@ -6,6 +6,10 @@ import { reviews, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { desc, eq } from "drizzle-orm";
 
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
 type ReviewPayload = {
   rating?: unknown;
   comment?: unknown;
@@ -27,7 +31,7 @@ function cleanRating(value: unknown): number | null {
   return i;
 }
 
-export async function GET(_req: Request, ctx: RouteContext<"/api/profiles/[id]/reviews">) {
+export async function GET(_req: Request, ctx: RouteContext) {
   const { id } = await ctx.params;
   const db = getDb();
 
@@ -51,7 +55,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/profiles/[id]/r
   return Response.json(rows);
 }
 
-export async function POST(req: Request, ctx: RouteContext<"/api/profiles/[id]/reviews">) {
+export async function POST(req: Request, ctx: RouteContext) {
   const { id } = await ctx.params;
   const currentUser = await getCurrentUser();
   if (!currentUser) return Response.json({ error: "Login required" }, { status: 401 });
