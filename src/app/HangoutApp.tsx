@@ -110,54 +110,17 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
 
-type GoogleLatLng = {
-  lat: () => number;
-  lng: () => number;
-};
+type LeafletModule = typeof import("leaflet");
+type LeafletMap = import("leaflet").Map;
+type LeafletCircleMarker = import("leaflet").CircleMarker;
+type LeafletLayerGroup = import("leaflet").LayerGroup;
 
-type GoogleMapMouseEvent = {
-  latLng?: GoogleLatLng | null;
+type NominatimResult = {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
 };
-
-type GoogleLatLngBounds = {
-  extend: (pos: { lat: number; lng: number }) => void;
-};
-
-type GoogleMap = {
-  addListener: (event: string, callback: (event: GoogleMapMouseEvent) => void) => void;
-  fitBounds: (bounds: GoogleLatLngBounds) => void;
-  getZoom: () => number;
-  setZoom: (zoom: number) => void;
-  panTo: (pos: { lat: number; lng: number }) => void;
-};
-
-type GoogleMarker = {
-  setMap: (map: GoogleMap | null) => void;
-  addListener: (event: string, callback: () => void) => void;
-};
-
-type GoogleMapsApi = {
-  Map: new (
-    el: HTMLElement,
-    opts: {
-      center: { lat: number; lng: number };
-      zoom: number;
-      mapTypeControl: boolean;
-      streetViewControl: boolean;
-      fullscreenControl?: boolean;
-    },
-  ) => GoogleMap;
-  Marker: new (opts: { map: GoogleMap; position: { lat: number; lng: number }; title?: string }) => GoogleMarker;
-  LatLngBounds: new () => GoogleLatLngBounds;
-};
-
-declare global {
-  interface Window {
-    google?: {
-      maps: GoogleMapsApi;
-    };
-  }
-}
 
 const THEME_KEY = "hangout.theme";
 
@@ -191,7 +154,7 @@ const TYPE_VISUAL: Record<ActivityType, string> = {
   help: "/scenes/help-circle.svg",
 };
 
-let mapsLoader: Promise<GoogleMapsApi | null> | null = null;
+let leafletLoader: Promise<LeafletModule> | null = null;
 
 function safeText(value: unknown): string {
   return String(value ?? "").trim();
@@ -246,10 +209,14 @@ function applyTheme() {
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers = new Headers(options?.headers);
+  if (!headers.has("Content-Type") && options?.body) {
+    headers.set("Content-Type", "application/json");
+  }
   const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    cache: options?.cache ?? "no-store",
     ...options,
+    headers,
+    cache: options?.cache ?? "no-store",
   });
   const text = await response.text();
   let data: unknown = null;
@@ -265,31 +232,11 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return data as T;
 }
 
-function loadGoogleMaps(): Promise<GoogleMapsApi | null> {
-  if (typeof window === "undefined") return Promise.resolve(null);
-  if (window.google?.maps) return Promise.resolve(window.google.maps);
-  const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  if (!key) return Promise.resolve(null);
-  if (mapsLoader) return mapsLoader;
-
-  mapsLoader = new Promise((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>('script[data-hangout-maps="1"]');
-    if (existing) {
-      existing.addEventListener("load", () => resolve(window.google?.maps ?? null));
-      existing.addEventListener("error", () => reject(new Error("Could not load Google Maps")));
-      return;
-    }
-    const script = document.createElement("script");
-    script.async = true;
-    script.defer = true;
-    script.dataset.hangoutMaps = "1";
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}`;
-    script.onload = () => resolve(window.google?.maps ?? null);
-    script.onerror = () => reject(new Error("Could not load Google Maps"));
-    document.head.appendChild(script);
-  });
-
-  return mapsLoader;
+function loadLeaflet(): Promise<LeafletModule> {
+  if (!leafletLoader) {
+    leafletLoader = import("leaflet");
+  }
+  return leafletLoader;
 }
 
 function Avatar({ name, avatarUrl, size = "md" }: { name: string; avatarUrl?: string | null; size?: "sm" | "md" }) {
@@ -341,6 +288,9 @@ export default function HangoutApp({
   const [limit, setLimit] = useState("");
   const [pinLat, setPinLat] = useState("");
   const [pinLng, setPinLng] = useState("");
+  const [pinSearchQuery, setPinSearchQuery] = useState("");
+  const [pinSearchResults, setPinSearchResults] = useState<NominatimResult[]>([]);
+  const [pinSearchLoading, setPinSearchLoading] = useState(false);
 
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [authName, setAuthName] = useState("");
@@ -371,10 +321,10 @@ export default function HangoutApp({
   const pickerMapElRef = useRef<HTMLDivElement | null>(null);
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
   const profilesSectionRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<GoogleMap | null>(null);
-  const pickerMapRef = useRef<GoogleMap | null>(null);
-  const pickerMarkerRef = useRef<GoogleMarker | null>(null);
-  const markersRef = useRef<GoogleMarker[]>([]);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const pickerMapRef = useRef<LeafletMap | null>(null);
+  const pickerMarkerRef = useRef<LeafletCircleMarker | null>(null);
+  const markersLayerRef = useRef<LeafletLayerGroup | null>(null);
   const bootProfilesLoadedRef = useRef(false);
 
   const selectedActivity = useMemo(
@@ -472,12 +422,11 @@ export default function HangoutApp({
   useEffect(() => {
     if (tab !== "map") return;
     const map = mapRef.current;
-    if (!map || !window.google?.maps) return;
+    if (!map) return;
     window.setTimeout(() => {
-      const mapsWithEvent = window.google?.maps as unknown as { event?: { trigger?: (target: GoogleMap, eventName: string) => void } };
-      mapsWithEvent.event?.trigger?.(map, "resize");
+      map.invalidateSize();
       if (selectedActivity && typeof selectedActivity.lat === "number" && typeof selectedActivity.lng === "number") {
-        map.panTo({ lat: selectedActivity.lat, lng: selectedActivity.lng });
+        map.panTo([selectedActivity.lat, selectedActivity.lng]);
       }
     }, 120);
   }, [tab, selectedActivity]);
@@ -514,41 +463,50 @@ export default function HangoutApp({
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const maps = await loadGoogleMaps();
-      if (!maps || cancelled) return;
+      const L = await loadLeaflet();
+      if (cancelled) return;
 
       if (!mapRef.current && mapElRef.current) {
-        mapRef.current = new maps.Map(mapElRef.current, {
-          center: { lat: 24.7136, lng: 46.6753 },
+        const map = L.map(mapElRef.current, {
+          center: [24.7136, 46.6753],
           zoom: 5,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: false,
+          zoomControl: true,
         });
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "&copy; OpenStreetMap contributors",
+        }).addTo(map);
+        mapRef.current = map;
+        markersLayerRef.current = L.layerGroup().addTo(map);
       }
 
       if (!pickerMapRef.current && pickerMapElRef.current) {
-        pickerMapRef.current = new maps.Map(pickerMapElRef.current, {
-          center: { lat: 24.7136, lng: 46.6753 },
+        const pickerMap = L.map(pickerMapElRef.current, {
+          center: [24.7136, 46.6753],
           zoom: 5,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: false,
+          zoomControl: true,
         });
-        pickerMapRef.current.addListener("click", (e) => {
-          const lat = e.latLng?.lat?.();
-          const lng = e.latLng?.lng?.();
-          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-          const latNum = lat as number;
-          const lngNum = lng as number;
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "&copy; OpenStreetMap contributors",
+        }).addTo(pickerMap);
+
+        pickerMap.on("click", (e) => {
+          const latNum = e.latlng.lat;
+          const lngNum = e.latlng.lng;
           setPinLat(latNum.toFixed(6));
           setPinLng(lngNum.toFixed(6));
-          if (pickerMarkerRef.current) pickerMarkerRef.current.setMap(null);
-          pickerMarkerRef.current = new maps.Marker({
-            map: pickerMapRef.current as GoogleMap,
-            position: { lat: latNum, lng: lngNum },
-          });
+          if (pickerMarkerRef.current) {
+            pickerMarkerRef.current.remove();
+          }
+          pickerMarkerRef.current = L.circleMarker([latNum, lngNum], {
+            radius: 8,
+            color: "#0f766e",
+            fillColor: "#14b8a6",
+            fillOpacity: 0.95,
+            weight: 2,
+          }).addTo(pickerMap);
         });
+
+        pickerMapRef.current = pickerMap;
       }
     })();
     return () => {
@@ -557,34 +515,40 @@ export default function HangoutApp({
   }, []);
 
   useEffect(() => {
-    const maps = window.google?.maps;
-    if (!maps || !mapRef.current) return;
-    for (const marker of markersRef.current) marker.setMap(null);
-    markersRef.current = [];
-    const bounds = new maps.LatLngBounds();
-    let hasPins = false;
-    for (const item of filteredActivities) {
-      if (typeof item.lat !== "number" || typeof item.lng !== "number") continue;
-      const marker = new maps.Marker({
-        map: mapRef.current,
-        position: { lat: item.lat, lng: item.lng },
-        title: item.title,
-      });
-      marker.addListener("click", () => setSelectedActivityId(item.id));
-      markersRef.current.push(marker);
-      bounds.extend({ lat: item.lat, lng: item.lng });
-      hasPins = true;
-    }
-    if (hasPins) {
-      mapRef.current.fitBounds(bounds);
-      if (mapRef.current.getZoom() > 14) mapRef.current.setZoom(14);
-    }
-  }, [filteredActivities]);
+    const map = mapRef.current;
+    const layer = markersLayerRef.current;
+    if (!map || !layer) return;
+    void (async () => {
+      const L = await loadLeaflet();
+      layer.clearLayers();
+      const boundsPoints: Array<[number, number]> = [];
+      for (const item of filteredActivities) {
+        if (typeof item.lat !== "number" || typeof item.lng !== "number") continue;
+        const marker = L.circleMarker([item.lat, item.lng], {
+          radius: 7,
+          color: selectedActivityId === item.id ? "#0f172a" : "#0f766e",
+          fillColor: selectedActivityId === item.id ? "#1e293b" : "#14b8a6",
+          fillOpacity: 0.95,
+          weight: 2,
+        });
+        marker.on("click", () => setSelectedActivityId(item.id));
+        marker.bindTooltip(item.title, { direction: "top" });
+        marker.addTo(layer);
+        boundsPoints.push([item.lat, item.lng]);
+      }
+
+      if (boundsPoints.length > 0) {
+        const bounds = L.latLngBounds(boundsPoints);
+        map.fitBounds(bounds, { padding: [20, 20] });
+        if (map.getZoom() > 14) map.setZoom(14);
+      }
+    })();
+  }, [filteredActivities, selectedActivityId]);
 
   useEffect(() => {
     if (!selectedActivity || !mapRef.current) return;
     if (typeof selectedActivity.lat !== "number" || typeof selectedActivity.lng !== "number") return;
-    mapRef.current.panTo({ lat: selectedActivity.lat, lng: selectedActivity.lng });
+    mapRef.current.panTo([selectedActivity.lat, selectedActivity.lng]);
   }, [selectedActivity]);
 
   useEffect(() => {
@@ -724,8 +688,10 @@ export default function HangoutApp({
     setLimit("");
     setPinLat("");
     setPinLng("");
+    setPinSearchQuery("");
+    setPinSearchResults([]);
     if (pickerMarkerRef.current) {
-      pickerMarkerRef.current.setMap(null);
+      pickerMarkerRef.current.remove();
       pickerMarkerRef.current = null;
     }
   }
@@ -762,6 +728,60 @@ export default function HangoutApp({
 
   function startGoogleLogin() {
     window.location.href = "/api/auth/google/start";
+  }
+
+  async function searchLocationPin() {
+    const query = safeText(pinSearchQuery);
+    if (!query) {
+      setToast("Enter a location to search.");
+      return;
+    }
+    try {
+      setPinSearchLoading(true);
+      const params = new URLSearchParams({
+        format: "jsonv2",
+        q: query,
+        limit: "6",
+      });
+      const rows = await apiFetch<NominatimResult[]>(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+        headers: {
+          Accept: "application/json",
+        },
+      });
+      setPinSearchResults(rows);
+      if (rows.length === 0) setToast("No locations found.");
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Could not search location");
+    } finally {
+      setPinSearchLoading(false);
+    }
+  }
+
+  async function applyPinResult(item: NominatimResult) {
+    const L = await loadLeaflet();
+    const latNum = Number.parseFloat(item.lat);
+    const lngNum = Number.parseFloat(item.lon);
+    if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+      setToast("Invalid coordinates returned.");
+      return;
+    }
+    setLocation(item.display_name.slice(0, 60));
+    setPinLat(latNum.toFixed(6));
+    setPinLng(lngNum.toFixed(6));
+    setPinSearchResults([]);
+    setPinSearchQuery(item.display_name);
+    const pickerMap = pickerMapRef.current;
+    if (pickerMap) {
+      pickerMap.setView([latNum, lngNum], 13);
+      if (pickerMarkerRef.current) pickerMarkerRef.current.remove();
+      pickerMarkerRef.current = L.circleMarker([latNum, lngNum], {
+        radius: 8,
+        color: "#0f766e",
+        fillColor: "#14b8a6",
+        fillOpacity: 0.95,
+        weight: 2,
+      }).addTo(pickerMap);
+    }
   }
 
   async function logout() {
@@ -1001,7 +1021,6 @@ export default function HangoutApp({
     setInstallPromptEvent(null);
   }
 
-  const mapEnabled = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
   const isOwnSelectedActivity = !!(selectedActivity && user?.id && selectedActivity.creatorId === user.id);
 
   function switchTab(nextTab: "map" | "profiles") {
@@ -1174,14 +1193,36 @@ export default function HangoutApp({
                   <input value={pinLat} onChange={(e) => setPinLat(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Latitude" />
                   <input value={pinLng} onChange={(e) => setPinLng(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Longitude" />
                 </div>
-                <div className="rounded-lg border border-slate-300/70 dark:border-slate-700 overflow-hidden">
-                  {mapEnabled ? (
-                    <div ref={pickerMapElRef} className="h-44 w-full" />
-                  ) : (
-                    <div className="h-44 w-full p-3 text-xs text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800">
-                      Add `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` for map pin picking.
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[1fr_auto] gap-2">
+                    <input
+                      value={pinSearchQuery}
+                      onChange={(e) => setPinSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void searchLocationPin();
+                        }
+                      }}
+                      className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent"
+                      placeholder="Search place (free OSM)"
+                    />
+                    <button type="button" onClick={() => void searchLocationPin()} disabled={pinSearchLoading} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 text-xs sm:text-sm font-medium disabled:opacity-60">
+                      {pinSearchLoading ? "Searching..." : "Search"}
+                    </button>
+                  </div>
+                  {pinSearchResults.length > 0 ? (
+                    <div className="max-h-32 overflow-auto rounded-md border border-slate-300/70 dark:border-slate-700 divide-y divide-slate-300/60 dark:divide-slate-700/70">
+                      {pinSearchResults.map((result) => (
+                        <button key={result.place_id} type="button" onClick={() => void applyPinResult(result)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
+                          {result.display_name}
+                        </button>
+                      ))}
                     </div>
-                  )}
+                  ) : null}
+                </div>
+                <div className="rounded-lg border border-slate-300/70 dark:border-slate-700 overflow-hidden">
+                  <div ref={pickerMapElRef} className="h-44 w-full" />
                 </div>
                 <button type="button" onClick={() => void createActivity()} className="h-10 w-full rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-medium text-sm">
                   Post Activity
@@ -1211,13 +1252,7 @@ export default function HangoutApp({
               </div>
 
               <div className="border-b border-slate-300/60 dark:border-slate-700/70">
-                {mapEnabled ? (
-                  <div ref={mapElRef} className="h-[260px] sm:h-[360px] w-full" />
-                ) : (
-                  <div className="h-[260px] sm:h-[360px] w-full p-4 text-sm text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800">
-                    Add `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` to show the live map.
-                  </div>
-                )}
+                <div ref={mapElRef} className="h-[260px] sm:h-[360px] w-full" />
               </div>
 
               <div className="max-h-[420px] sm:max-h-[520px] overflow-auto divide-y divide-slate-300/60 dark:divide-slate-700/70">
