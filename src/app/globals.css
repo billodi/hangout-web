@@ -1,26 +1,59 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --surface: rgba(255, 255, 255, 0.78);
+  --surface-border: rgba(148, 163, 184, 0.26);
+  --shadow-soft: 0 12px 36px -18px rgba(15, 23, 42, 0.22);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Cascadia Mono", "Consolas", "Courier New", monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #020617;
+    --foreground: #e2e8f0;
+    --surface: rgba(15, 23, 42, 0.72);
+    --surface-border: rgba(71, 85, 105, 0.5);
+    --shadow-soft: 0 16px 44px -20px rgba(2, 6, 23, 0.7);
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  min-height: 100dvh;
+  background-image:
+    radial-gradient(circle at 0% 0%, rgba(14, 165, 233, 0.13), transparent 36%),
+    radial-gradient(circle at 100% 0%, rgba(20, 184, 166, 0.12), transparent 32%),
+    radial-gradient(circle at 50% 100%, rgba(8, 145, 178, 0.08), transparent 38%);
+  background-attachment: fixed;
+}
+
+@media (max-width: 640px) {
+  body {
+    background-size: 140% 140%;
+  }
+}
+
+.card-surface {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(10px);
+}
+
+.safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 0.75rem);
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
 }

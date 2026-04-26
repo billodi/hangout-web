@@ -2,12 +2,16 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { getDb } from "@/db";
-import { activities } from "@/db/schema";
-import { asc } from "drizzle-orm";
+import { activityParticipants, activities, users } from "@/db/schema";
+import { getCurrentUser } from "@/lib/auth";
+import { asc, eq, inArray } from "drizzle-orm";
 
 type CreatePayload = {
   title?: unknown;
+  description?: unknown;
   location?: unknown;
+  lat?: unknown;
+  lng?: unknown;
   whenISO?: unknown;
   type?: unknown;
   limit?: unknown;
@@ -23,6 +27,12 @@ function cleanText(value: unknown, maxLen: number): string | null {
 function cleanType(value: unknown): "chill" | "active" | "help" {
   if (value === "active" || value === "help") return value;
   return "chill";
+}
+
+function cleanFloat(value: unknown): number | null {
+  const n = typeof value === "number" ? value : Number.parseFloat(String(value ?? ""));
+  if (!Number.isFinite(n)) return null;
+  return n;
 }
 
 function cleanLimit(value: unknown): number | null {
@@ -50,8 +60,31 @@ export async function GET() {
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : "DB not configured" }, { status: 500 });
   }
+  const currentUser = await getCurrentUser();
   const rows = await db.select().from(activities).orderBy(asc(activities.whenISO));
-  return Response.json(rows);
+
+  const creatorIds = [...new Set(rows.map((row) => row.creatorId).filter((v): v is string => !!v))];
+  const creators =
+    creatorIds.length > 0
+      ? await db.select({ id: users.id, displayName: users.displayName }).from(users).where(inArray(users.id, creatorIds))
+      : [];
+  const creatorMap = new Map(creators.map((c) => [c.id, c.displayName]));
+
+  const myJoinedIds = currentUser
+    ? await db
+        .select({ activityId: activityParticipants.activityId })
+        .from(activityParticipants)
+        .where(eq(activityParticipants.userId, currentUser.id))
+    : [];
+  const joinedSet = new Set(myJoinedIds.map((x) => x.activityId));
+
+  return Response.json(
+    rows.map((row) => ({
+      ...row,
+      creatorName: row.creatorId ? creatorMap.get(row.creatorId) ?? "Unknown" : "Unknown",
+      joined: currentUser ? joinedSet.has(row.id) : false,
+    })),
+  );
 }
 
 export async function POST(req: Request) {
@@ -68,21 +101,33 @@ export async function POST(req: Request) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  const currentUser = await getCurrentUser();
+  if (!currentUser) {
+    return Response.json({ error: "Login required" }, { status: 401 });
+  }
+
   const title = cleanText(body.title, 80);
+  const description = cleanText(body.description, 300);
   const location = cleanText(body.location, 60);
+  const lat = cleanFloat(body.lat);
+  const lng = cleanFloat(body.lng);
   const whenISO = cleanWhenISO(body.whenISO);
   const type = cleanType(body.type);
   const limit = cleanLimit(body.limit);
 
-  if (!title || !location || !whenISO) {
+  if (!title || !location || !whenISO || lat === null || lng === null) {
     return Response.json({ error: "Missing required fields" }, { status: 400 });
   }
 
   const [created] = await db
     .insert(activities)
     .values({
+      creatorId: currentUser.id,
       title,
+      description,
       location,
+      lat,
+      lng,
       whenISO,
       type,
       going: 1,
@@ -90,5 +135,17 @@ export async function POST(req: Request) {
     })
     .returning();
 
-  return Response.json(created, { status: 201 });
+  await db.insert(activityParticipants).values({
+    activityId: created.id,
+    userId: currentUser.id,
+  });
+
+  return Response.json(
+    {
+      ...created,
+      creatorName: currentUser.displayName,
+      joined: true,
+    },
+    { status: 201 },
+  );
 }
