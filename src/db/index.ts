@@ -17,8 +17,7 @@ export function getDb() {
       // Serverless-safe: avoid prepared statements across pooled connections.
       prepare: false,
       ssl: {
-        // Use proper SSL in production - Neon provides cert
-        rejectUnauthorized: process.env.NODE_ENV === "production",
+        rejectUnauthorized: false,
       },
     });
 

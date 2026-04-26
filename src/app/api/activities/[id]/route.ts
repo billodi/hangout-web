@@ -6,11 +6,7 @@ import { activities } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 
-type RouteContext = {
-  params: Promise<{ id: string }>;
-};
-
-export async function DELETE(_req: Request, ctx: RouteContext) {
+export async function DELETE(_req: Request, ctx: RouteContext<"/api/activities/[id]">) {
   const { id } = await ctx.params;
   const currentUser = await getCurrentUser();
   if (!currentUser) return Response.json({ error: "Login required" }, { status: 401 });
