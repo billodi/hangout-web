@@ -200,9 +200,9 @@ function safeText(value: unknown): string {
 function formatWhen(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "Unknown";
-  const date = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-  const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-  return `${date} ${time}`;
+  const date = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+  const time = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "UTC" });
+  return `${date} ${time} UTC`;
 }
 
 function toDateInput(date: Date): string {
@@ -322,6 +322,7 @@ export default function HangoutApp({
   const [tab, setTab] = useState<"map" | "profiles">("map");
   const [mobileMapPane, setMobileMapPane] = useState<"create" | "feed" | "details">("feed");
   const [mobileProfilesPane, setMobileProfilesPane] = useState<"list" | "detail">("list");
+  const [nowTick, setNowTick] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
 
@@ -393,7 +394,7 @@ export default function HangoutApp({
       if (q && !hay.includes(q)) return false;
       if (filterType !== "all" && a.type !== filterType) return false;
       if (onlyOpen && a.limit !== null && a.going >= a.limit) return false;
-      if (onlyOpen && new Date(a.whenISO).getTime() <= Date.now()) return false;
+      if (onlyOpen && nowTick > 0 && new Date(a.whenISO).getTime() <= nowTick) return false;
       return true;
     });
     copy.sort((a, b) => {
@@ -401,7 +402,13 @@ export default function HangoutApp({
       return new Date(a.whenISO).getTime() - new Date(b.whenISO).getTime();
     });
     return copy;
-  }, [activities, search, filterType, onlyOpen, sortBy]);
+  }, [activities, search, filterType, onlyOpen, sortBy, nowTick]);
+
+  function isClosedByWhen(whenISO: string): boolean {
+    if (nowTick <= 0) return false;
+    const ts = new Date(whenISO).getTime();
+    return Number.isFinite(ts) && ts <= nowTick;
+  }
 
   useEffect(() => {
     if (!profileDetail?.reviewContext) {
@@ -421,6 +428,12 @@ export default function HangoutApp({
 
   useEffect(() => {
     applyTheme();
+  }, []);
+
+  useEffect(() => {
+    setNowTick(Date.now());
+    const timer = window.setInterval(() => setNowTick(Date.now()), 30000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -1213,7 +1226,7 @@ export default function HangoutApp({
                 ) : (
                   filteredActivities.map((item) => {
                     const isFull = item.limit !== null && item.going >= item.limit;
-                    const isClosed = new Date(item.whenISO).getTime() <= Date.now();
+                    const isClosed = isClosedByWhen(item.whenISO);
                     const selected = selectedActivityId === item.id;
                     const isMine = !!(user?.id && item.creatorId === user.id);
                     return (
@@ -1290,7 +1303,7 @@ export default function HangoutApp({
                 <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">Select a post from the map feed.</p>
               ) : (
                 <div className="mt-3 space-y-3 text-sm">
-                  {new Date(selectedActivity.whenISO).getTime() <= Date.now() ? (
+                  {isClosedByWhen(selectedActivity.whenISO) ? (
                     <p className="inline-flex rounded-md bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200 px-2 py-1 text-xs font-semibold border border-rose-300/60 dark:border-rose-700/60">
                       Closed
                     </p>
@@ -1318,7 +1331,7 @@ export default function HangoutApp({
                       <button type="button" disabled className="h-10 px-4 rounded-md border border-slate-300/70 dark:border-slate-700 text-sm font-medium opacity-70 cursor-not-allowed">
                         Login to Join
                       </button>
-                    ) : new Date(selectedActivity.whenISO).getTime() <= Date.now() ? (
+                    ) : isClosedByWhen(selectedActivity.whenISO) ? (
                       <button type="button" disabled className="h-10 px-4 rounded-md border border-slate-300/70 dark:border-slate-700 text-sm font-medium opacity-70 cursor-not-allowed">
                         Closed
                       </button>
