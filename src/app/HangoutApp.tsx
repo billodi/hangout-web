@@ -389,6 +389,7 @@ export default function HangoutApp({
       if (q && !hay.includes(q)) return false;
       if (filterType !== "all" && a.type !== filterType) return false;
       if (onlyOpen && a.limit !== null && a.going >= a.limit) return false;
+      if (onlyOpen && new Date(a.whenISO).getTime() <= Date.now()) return false;
       return true;
     });
     copy.sort((a, b) => {
@@ -1145,6 +1146,7 @@ export default function HangoutApp({
                 ) : (
                   filteredActivities.map((item) => {
                     const isFull = item.limit !== null && item.going >= item.limit;
+                    const isClosed = new Date(item.whenISO).getTime() <= Date.now();
                     const selected = selectedActivityId === item.id;
                     const isMine = !!(user?.id && item.creatorId === user.id);
                     return (
@@ -1185,8 +1187,8 @@ export default function HangoutApp({
                                 Login to Join
                               </button>
                             ) : (
-                              <button type="button" disabled={isFull} onClick={(e) => { e.stopPropagation(); void joinActivity(item.id); }} className={`h-9 px-3 rounded-md text-sm font-medium ${isFull ? "opacity-50 cursor-not-allowed border border-slate-300/70 dark:border-slate-700" : "bg-slate-900 text-white dark:bg-white dark:text-slate-900"}`}>
-                                {isFull ? "Full" : "Join"}
+                              <button type="button" disabled={isFull || isClosed} onClick={(e) => { e.stopPropagation(); void joinActivity(item.id); }} className={`h-9 px-3 rounded-md text-sm font-medium ${isFull || isClosed ? "opacity-50 cursor-not-allowed border border-slate-300/70 dark:border-slate-700" : "bg-slate-900 text-white dark:bg-white dark:text-slate-900"}`}>
+                                {isClosed ? "Closed" : isFull ? "Full" : "Join"}
                               </button>
                             )}
                             {isMine ? (
@@ -1209,6 +1211,9 @@ export default function HangoutApp({
                 <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">Select a post from the map feed.</p>
               ) : (
                 <div className="mt-3 space-y-2 text-sm">
+                  {new Date(selectedActivity.whenISO).getTime() <= Date.now() ? (
+                    <p className="inline-flex rounded-md bg-slate-200/70 dark:bg-slate-800 px-2 py-1 text-xs font-medium">Closed</p>
+                  ) : null}
                   <div className="overflow-hidden rounded-lg border border-slate-200/70 dark:border-slate-700/70">
                     <Image src={TYPE_VISUAL[selectedActivity.type]} alt={`${TYPE_META[selectedActivity.type].label} activity visual`} width={1200} height={800} className="h-44 w-full object-cover" />
                   </div>
@@ -1229,6 +1234,10 @@ export default function HangoutApp({
                     ) : !user ? (
                       <button type="button" disabled className="h-10 px-4 rounded-md border border-slate-300/70 dark:border-slate-700 text-sm font-medium opacity-70 cursor-not-allowed">
                         Login to Join
+                      </button>
+                    ) : new Date(selectedActivity.whenISO).getTime() <= Date.now() ? (
+                      <button type="button" disabled className="h-10 px-4 rounded-md border border-slate-300/70 dark:border-slate-700 text-sm font-medium opacity-70 cursor-not-allowed">
+                        Closed
                       </button>
                     ) : (
                       <button type="button" onClick={() => void joinActivity(selectedActivity.id)} className="h-10 px-4 rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-sm font-medium">

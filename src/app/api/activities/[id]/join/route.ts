@@ -28,6 +28,12 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/activities/[id
     return Response.json({ ...already, joined: true });
   }
 
+  const [activity] = await db.select().from(activities).where(eq(activities.id, id));
+  if (!activity) return Response.json({ error: "Not found" }, { status: 404 });
+  if (new Date(activity.whenISO).getTime() <= Date.now()) {
+    return Response.json({ error: "Closed" }, { status: 409 });
+  }
+
   const [updated] = await db
     .update(activities)
     .set({ going: sql`${activities.going} + 1` })
@@ -42,8 +48,6 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/activities/[id
     return Response.json({ ...updated, joined: true });
   }
 
-  const [existing] = await db.select().from(activities).where(eq(activities.id, id));
-  if (!existing) return Response.json({ error: "Not found" }, { status: 404 });
-  if (existing.limit !== null && existing.going >= existing.limit) return Response.json({ error: "Full" }, { status: 409 });
+  if (activity.limit !== null && activity.going >= activity.limit) return Response.json({ error: "Full" }, { status: 409 });
   return Response.json({ error: "Could not join" }, { status: 500 });
 }
