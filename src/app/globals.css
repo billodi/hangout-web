@@ -1,27 +1,32 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #faf5ef;
+  --foreground: #172033;
   --surface: rgba(255, 255, 255, 0.78);
-  --surface-border: rgba(148, 163, 184, 0.26);
-  --shadow-soft: 0 12px 36px -18px rgba(15, 23, 42, 0.22);
+  --surface-strong: rgba(255, 255, 255, 0.9);
+  --surface-border: rgba(106, 126, 164, 0.26);
+  --shadow-soft: 0 24px 44px -28px rgba(23, 32, 51, 0.28);
+  --accent: #0f766e;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-sans: var(--font-manrope), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-heading: var(--font-playfair), Georgia, serif;
   --font-mono: "Cascadia Mono", "Consolas", "Courier New", monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #020617;
-    --foreground: #e2e8f0;
-    --surface: rgba(15, 23, 42, 0.72);
-    --surface-border: rgba(71, 85, 105, 0.5);
-    --shadow-soft: 0 16px 44px -20px rgba(2, 6, 23, 0.7);
+    --background: #07111d;
+    --foreground: #e6edf8;
+    --surface: rgba(12, 26, 42, 0.72);
+    --surface-strong: rgba(15, 31, 51, 0.88);
+    --surface-border: rgba(102, 135, 176, 0.42);
+    --shadow-soft: 0 18px 50px -20px rgba(2, 6, 23, 0.7);
+    --accent: #2dd4bf;
   }
 }
 
@@ -31,10 +36,19 @@ body {
   font-family: var(--font-sans);
   min-height: 100dvh;
   background-image:
-    radial-gradient(circle at 0% 0%, rgba(14, 165, 233, 0.13), transparent 36%),
-    radial-gradient(circle at 100% 0%, rgba(20, 184, 166, 0.12), transparent 32%),
-    radial-gradient(circle at 50% 100%, rgba(8, 145, 178, 0.08), transparent 38%);
+    radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.18), transparent 36%),
+    radial-gradient(circle at 100% 0%, rgba(14, 165, 233, 0.18), transparent 32%),
+    radial-gradient(circle at 100% 100%, rgba(20, 184, 166, 0.14), transparent 36%),
+    linear-gradient(150deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0));
   background-attachment: fixed;
+}
+
+h1,
+h2,
+h3,
+[data-heading="true"] {
+  font-family: var(--font-heading);
+  letter-spacing: 0.01em;
 }
 
 @media (max-width: 640px) {
@@ -44,10 +58,38 @@ body {
 }
 
 .card-surface {
-  background: var(--surface);
+  background: var(--surface-strong);
   border: 1px solid var(--surface-border);
   box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(14px);
+}
+
+.hero-image {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+}
+
+.hero-image::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.03), rgba(15, 23, 42, 0.38));
+}
+
+.fade-up {
+  animation: fade-up 520ms ease both;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .safe-bottom {

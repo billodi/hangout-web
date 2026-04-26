@@ -1,0 +1,24 @@
+<svg width="1200" height="800" viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="People helping each other in a community circle">
+  <defs>
+    <linearGradient id="bg3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0ea5e9" />
+      <stop offset="52%" stop-color="#14b8a6" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg3)" />
+  <circle cx="600" cy="430" r="270" fill="#f0fdfa" opacity="0.28" />
+  <circle cx="600" cy="430" r="210" fill="#f8fafc" opacity="0.35" />
+  <g fill="#f8fafc">
+    <circle cx="470" cy="312" r="34" />
+    <rect x="444" y="340" width="52" height="122" rx="24" />
+    <circle cx="730" cy="308" r="34" />
+    <rect x="704" y="338" width="52" height="122" rx="24" />
+    <circle cx="600" cy="565" r="34" />
+    <rect x="574" y="594" width="52" height="122" rx="24" />
+  </g>
+  <path d="M500 448C550 486 650 486 700 448" stroke="#0f172a" stroke-width="22" stroke-linecap="round" opacity="0.5" />
+  <path d="M496 410L600 360L704 410" stroke="#f8fafc" stroke-width="20" stroke-linecap="round" />
+  <path d="M90 710C220 620 330 620 470 710" stroke="#bae6fd" stroke-width="22" stroke-linecap="round" opacity="0.7" />
+  <path d="M730 710C870 620 980 620 1110 710" stroke="#bbf7d0" stroke-width="22" stroke-linecap="round" opacity="0.7" />
+</svg>

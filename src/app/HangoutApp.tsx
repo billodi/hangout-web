@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type ActivityType = "chill" | "active" | "help";
@@ -151,6 +152,30 @@ const TYPE_META: Record<ActivityType, { label: string; chip: string }> = {
   chill: { label: "Chill", chip: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200" },
   active: { label: "Active", chip: "bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200" },
   help: { label: "Help", chip: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200" },
+};
+
+const HERO_SCENES = [
+  {
+    src: "/scenes/rooftop-night.svg",
+    title: "Evening Rooftop Vibes",
+    caption: "Low-pressure social meetups after work.",
+  },
+  {
+    src: "/scenes/city-walk.svg",
+    title: "City Walk Energy",
+    caption: "Explore local spots and discover new people.",
+  },
+  {
+    src: "/scenes/help-circle.svg",
+    title: "Community Help Circle",
+    caption: "Organize support and meaningful collaboration.",
+  },
+] as const;
+
+const TYPE_VISUAL: Record<ActivityType, string> = {
+  chill: "/scenes/rooftop-night.svg",
+  active: "/scenes/city-walk.svg",
+  help: "/scenes/help-circle.svg",
 };
 
 let mapsLoader: Promise<GoogleMapsApi | null> | null = null;
@@ -854,12 +879,12 @@ export default function HangoutApp({
 
   return (
     <div className="min-h-screen text-slate-900 dark:text-slate-100">
-      <header className="sticky top-0 z-30 safe-top border-b border-slate-300/40 dark:border-slate-700/60 bg-white/60 dark:bg-slate-950/65 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 safe-top border-b border-slate-300/40 dark:border-slate-700/60 bg-white/70 dark:bg-slate-950/65 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <h1 className="text-xl font-semibold tracking-tight truncate">Hangout Map</h1>
-              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 truncate">Clean map feed for local tasks and meetups.</p>
+              <h1 data-heading="true" className="text-2xl font-semibold tracking-tight truncate">Hangout Map</h1>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 truncate">Your city feels better when people show up for each other.</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {installPromptEvent ? (
@@ -882,7 +907,7 @@ export default function HangoutApp({
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-5 safe-bottom">
+      <main className="max-w-7xl mx-auto px-4 py-5 safe-bottom fade-up">
         <div className="hidden sm:flex items-center gap-2 mb-4">
           <button type="button" onClick={() => setTab("map")} className={`h-10 px-4 rounded-md text-sm font-medium border ${tab === "map" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
             Map + Posts
@@ -891,6 +916,27 @@ export default function HangoutApp({
             Profiles
           </button>
         </div>
+
+        <section className="mb-5 rounded-2xl card-surface p-4 sm:p-5">
+          <div className="flex items-end justify-between gap-4 flex-wrap">
+            <div>
+              <h2 data-heading="true" className="text-xl sm:text-2xl font-semibold">Find your next plan in minutes</h2>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Real activities, real people, and now a warmer visual experience.</p>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Browse, post, and join directly from the map.</p>
+          </div>
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {HERO_SCENES.map((scene) => (
+              <article key={scene.src} className="hero-image border border-slate-200/70 dark:border-slate-700/70">
+                <Image src={scene.src} alt={scene.title} width={1200} height={800} className="h-44 sm:h-40 w-full object-cover" priority={scene.src === HERO_SCENES[0].src} />
+                <div className="absolute inset-x-0 bottom-0 z-10 p-3 text-white">
+                  <p data-heading="true" className="text-sm font-semibold">{scene.title}</p>
+                  <p className="text-xs opacity-90">{scene.caption}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
 
         {!backendOk ? (
           <div className="mb-4 rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
@@ -1031,6 +1077,9 @@ export default function HangoutApp({
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
+                            <div className="mb-2 overflow-hidden rounded-lg border border-slate-200/70 dark:border-slate-700/70">
+                              <Image src={TYPE_VISUAL[item.type]} alt={`${TYPE_META[item.type].label} activity mood`} width={1200} height={800} className="h-20 w-full object-cover" />
+                            </div>
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className={`inline-flex h-6 items-center rounded-md px-2 text-xs font-medium ${TYPE_META[item.type].chip}`}>{TYPE_META[item.type].label}</span>
                               <span className="text-xs text-slate-500 dark:text-slate-300">by {item.creatorName}</span>
@@ -1070,6 +1119,9 @@ export default function HangoutApp({
                 <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">Select a post from the map feed.</p>
               ) : (
                 <div className="mt-3 space-y-2 text-sm">
+                  <div className="overflow-hidden rounded-lg border border-slate-200/70 dark:border-slate-700/70">
+                    <Image src={TYPE_VISUAL[selectedActivity.type]} alt={`${TYPE_META[selectedActivity.type].label} activity visual`} width={1200} height={800} className="h-44 w-full object-cover" />
+                  </div>
                   <h3 className="text-base font-semibold">{selectedActivity.title}</h3>
                   <p className="text-slate-600 dark:text-slate-300">Host: {selectedActivity.creatorName}</p>
                   <p className="text-slate-600 dark:text-slate-300">Location: {selectedActivity.location}</p>
@@ -1139,6 +1191,15 @@ export default function HangoutApp({
                 <p className="text-sm text-slate-600 dark:text-slate-300">Select a profile.</p>
               ) : (
                 <div className="space-y-5">
+                  <div className="overflow-hidden rounded-xl border border-slate-200/70 dark:border-slate-700/70">
+                    <Image
+                      src={TYPE_VISUAL[(profileDetail.stats.createdCount >= profileDetail.stats.joinedCount ? "active" : "chill") as ActivityType]}
+                      alt="Profile banner"
+                      width={1200}
+                      height={800}
+                      className="h-44 w-full object-cover"
+                    />
+                  </div>
                   <div className="flex items-center gap-3">
                     <Avatar name={profileDetail.profile.displayName} avatarUrl={profileDetail.profile.avatarUrl} />
                     <div>
@@ -1236,7 +1297,10 @@ export default function HangoutApp({
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {profileDetail.gallery.map((entry) => (
                           <article key={entry.id} className="rounded-lg border border-slate-300/70 dark:border-slate-700 overflow-hidden bg-white/60 dark:bg-slate-900/40">
-                            <img src={entry.imageUrl} alt={entry.caption} className="w-full h-44 object-cover bg-slate-100 dark:bg-slate-800" />
+                            <div className="relative">
+                              <img src={entry.imageUrl} alt={entry.caption} className="w-full h-44 object-cover bg-slate-100 dark:bg-slate-800" />
+                              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/15 via-transparent to-transparent"></div>
+                            </div>
                             <div className="p-3">
                               <p className="text-sm font-medium">{entry.caption}</p>
                               {entry.location ? <p className="mt-1 text-xs text-slate-500">{entry.location}</p> : null}

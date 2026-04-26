@@ -1,6 +1,17 @@
 import type { Metadata, Viewport } from "next";
+import { Manrope, Playfair_Display } from "next/font/google";
 import PwaRegister from "@/components/PwaRegister";
 import "./globals.css";
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-manrope",
+});
+
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-playfair",
+});
 
 export const metadata: Metadata = {
   title: "Hangout Map",
@@ -34,7 +45,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="en" className={`${manrope.variable} ${playfair.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <PwaRegister />
         {children}
