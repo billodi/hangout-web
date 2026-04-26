@@ -2,13 +2,15 @@
 @import "leaflet/dist/leaflet.css";
 
 :root {
-  --background: #faf5ef;
-  --foreground: #172033;
-  --surface: rgba(255, 255, 255, 0.78);
-  --surface-strong: rgba(255, 255, 255, 0.9);
-  --surface-border: rgba(106, 126, 164, 0.26);
-  --shadow-soft: 0 24px 44px -28px rgba(23, 32, 51, 0.28);
-  --accent: #0f766e;
+  --background: #f3f6fb;
+  --foreground: #0f172a;
+  --surface: #ffffff;
+  --surface-strong: #ffffff;
+  --surface-border: #d8e1ef;
+  --shadow-soft: 0 10px 24px -18px rgba(15, 23, 42, 0.4);
+  --accent: #0f172a;
+  --muted: #5b6578;
+  --ring: #334155;
 }
 
 @theme inline {
@@ -21,13 +23,15 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #07111d;
-    --foreground: #e6edf8;
-    --surface: rgba(12, 26, 42, 0.72);
-    --surface-strong: rgba(15, 31, 51, 0.88);
-    --surface-border: rgba(102, 135, 176, 0.42);
-    --shadow-soft: 0 18px 50px -20px rgba(2, 6, 23, 0.7);
-    --accent: #2dd4bf;
+    --background: #090f1b;
+    --foreground: #e2e8f0;
+    --surface: #0f172a;
+    --surface-strong: #111c31;
+    --surface-border: #25324a;
+    --shadow-soft: 0 14px 30px -18px rgba(2, 6, 23, 0.9);
+    --accent: #e2e8f0;
+    --muted: #9aa7bd;
+    --ring: #94a3b8;
   }
 }
 
@@ -36,12 +40,8 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   min-height: 100dvh;
-  background-image:
-    radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.18), transparent 36%),
-    radial-gradient(circle at 100% 0%, rgba(14, 165, 233, 0.18), transparent 32%),
-    radial-gradient(circle at 100% 100%, rgba(20, 184, 166, 0.14), transparent 36%),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0));
-  background-attachment: fixed;
+  letter-spacing: 0;
+  line-height: 1.35;
 }
 
 h1,
@@ -54,7 +54,7 @@ h3,
 
 @media (max-width: 640px) {
   body {
-    background-size: 140% 140%;
+    background-image: none;
   }
 }
 
@@ -62,7 +62,7 @@ h3,
   background: var(--surface-strong);
   border: 1px solid var(--surface-border);
   box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(14px);
+  border-radius: 14px;
 }
 
 .hero-image {
@@ -99,4 +99,25 @@ h3,
 
 .safe-top {
   padding-top: env(safe-area-inset-top);
+}
+
+input,
+select,
+textarea {
+  border: 1px solid var(--surface-border);
+  background: color-mix(in oklab, var(--surface-strong) 92%, transparent);
+  color: var(--foreground);
+  border-radius: 10px;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+button:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--ring) 60%, transparent);
+  outline-offset: 1px;
+}
+
+button {
+  transition: all 120ms ease;
 }

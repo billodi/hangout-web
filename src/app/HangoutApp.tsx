@@ -130,24 +130,6 @@ const TYPE_META: Record<ActivityType, { label: string; chip: string }> = {
   help: { label: "Help", chip: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200" },
 };
 
-const HERO_SCENES = [
-  {
-    src: "/scenes/rooftop-night.svg",
-    title: "Evening Rooftop Vibes",
-    caption: "Low-pressure social meetups after work.",
-  },
-  {
-    src: "/scenes/city-walk.svg",
-    title: "City Walk Energy",
-    caption: "Explore local spots and discover new people.",
-  },
-  {
-    src: "/scenes/help-circle.svg",
-    title: "Community Help Circle",
-    caption: "Organize support and meaningful collaboration.",
-  },
-] as const;
-
 const TYPE_VISUAL: Record<ActivityType, string> = {
   chill: "/scenes/rooftop-night.svg",
   active: "/scenes/city-walk.svg",
@@ -330,6 +312,10 @@ export default function HangoutApp({
   const selectedActivity = useMemo(
     () => activities.find((a) => a.id === selectedActivityId) ?? null,
     [activities, selectedActivityId],
+  );
+  const closedCount = useMemo(
+    () => activities.filter((a) => isClosedByWhen(a.whenISO)).length,
+    [activities, nowTick],
   );
   const availableActivityReviewOptions = useMemo(() => {
     if (!profileDetail?.reviewContext) return [];
@@ -1041,12 +1027,12 @@ export default function HangoutApp({
 
   return (
     <div className="min-h-screen text-slate-900 dark:text-slate-100">
-      <header className="sticky top-0 z-30 safe-top border-b border-slate-300/40 dark:border-slate-700/60 bg-white/70 dark:bg-slate-950/65 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 py-3">
+      <header className="sticky top-0 z-30 safe-top border-b border-slate-300/70 dark:border-slate-700/80 bg-white/94 dark:bg-slate-950/92 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <h1 data-heading="true" className="text-2xl font-semibold tracking-tight truncate">Hangout Map</h1>
-              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 truncate">Your city feels better when people show up for each other.</p>
+              <h1 data-heading="true" className="text-lg sm:text-xl font-semibold tracking-tight truncate">Hangout</h1>
+              <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 truncate">Map, posts, and profiles in one compact workspace.</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {installPromptEvent ? (
@@ -1054,13 +1040,13 @@ export default function HangoutApp({
                   Install App
                 </button>
               ) : null}
-              <button type="button" onClick={cycleTheme} className="h-9 w-9 inline-flex items-center justify-center rounded-md border border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900">
+              <button type="button" onClick={cycleTheme} className="h-8 w-8 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-md border border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"></path>
                 </svg>
               </button>
               {user ? (
-                <button type="button" onClick={() => void logout()} className="h-9 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900 text-sm font-medium">
+                <button type="button" onClick={() => void logout()} className="h-8 sm:h-9 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900 text-xs sm:text-sm font-medium">
                   Logout
                 </button>
               ) : null}
@@ -1069,36 +1055,32 @@ export default function HangoutApp({
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-5 safe-bottom fade-up">
-        <div className="hidden sm:flex items-center gap-2 mb-4">
-          <button type="button" onClick={() => switchTab("map")} className={`h-10 px-4 rounded-md text-sm font-medium border ${tab === "map" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 safe-bottom fade-up">
+        <section className="mb-3 sm:mb-4 rounded-xl card-surface p-2.5 sm:p-3">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-lg border border-slate-300/70 dark:border-slate-700/80 py-2">
+              <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Posts</p>
+              <p className="text-sm sm:text-base font-semibold">{activities.length}</p>
+            </div>
+            <div className="rounded-lg border border-slate-300/70 dark:border-slate-700/80 py-2">
+              <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Closed</p>
+              <p className="text-sm sm:text-base font-semibold">{closedCount}</p>
+            </div>
+            <div className="rounded-lg border border-slate-300/70 dark:border-slate-700/80 py-2">
+              <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Members</p>
+              <p className="text-sm sm:text-base font-semibold">{profiles.length}</p>
+            </div>
+          </div>
+        </section>
+
+        <div className="hidden sm:flex items-center gap-2 mb-3">
+          <button type="button" onClick={() => switchTab("map")} className={`h-9 px-4 rounded-md text-sm font-medium border ${tab === "map" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
             Map + Posts
           </button>
-          <button type="button" onClick={() => switchTab("profiles")} className={`h-10 px-4 rounded-md text-sm font-medium border ${tab === "profiles" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
+          <button type="button" onClick={() => switchTab("profiles")} className={`h-9 px-4 rounded-md text-sm font-medium border ${tab === "profiles" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
             Profiles
           </button>
         </div>
-
-        <section className="hidden sm:block mb-5 rounded-2xl card-surface p-4 sm:p-5">
-          <div className="flex items-end justify-between gap-4 flex-wrap">
-            <div>
-              <h2 data-heading="true" className="text-xl sm:text-2xl font-semibold">Find your next plan in minutes</h2>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Real activities, real people, and now a warmer visual experience.</p>
-            </div>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Browse, post, and join directly from the map.</p>
-          </div>
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {HERO_SCENES.map((scene) => (
-              <article key={scene.src} className="hero-image border border-slate-200/70 dark:border-slate-700/70">
-                <Image src={scene.src} alt={scene.title} width={1200} height={800} className="h-44 sm:h-40 w-full object-cover" priority={scene.src === HERO_SCENES[0].src} />
-                <div className="absolute inset-x-0 bottom-0 z-10 p-3 text-white">
-                  <p data-heading="true" className="text-sm font-semibold">{scene.title}</p>
-                  <p className="text-xs opacity-90">{scene.caption}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
 
         {!backendOk ? (
           <div className="mb-4 rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
@@ -1107,58 +1089,58 @@ export default function HangoutApp({
         ) : null}
 
         {!user ? (
-          <section className="mb-5 rounded-xl card-surface p-4 sm:p-5">
-            <h2 className="text-base font-semibold">Sign in to join, post, and review</h2>
-            <p className="mt-1 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+          <section className="mb-3 sm:mb-4 rounded-xl card-surface p-3 sm:p-4">
+            <h2 className="text-sm sm:text-base font-semibold">Sign in to join, post, and review</h2>
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
               Joining activities requires an account. Use Google for one-tap onboarding, or email login.
             </p>
-            <div className="mt-3">
+            <div className="mt-2.5">
               <button
                 type="button"
                 onClick={startGoogleLogin}
-                className="h-11 px-4 rounded-md border border-slate-300/70 dark:border-slate-700 bg-white/95 dark:bg-slate-900 text-sm font-semibold inline-flex items-center gap-2"
+                className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-white/95 dark:bg-slate-900 text-xs sm:text-sm font-semibold inline-flex items-center gap-2"
               >
                 <span className="text-base leading-none">G</span>
                 Continue with Google
               </button>
             </div>
-            <div className="mt-4 border-t border-slate-200/70 dark:border-slate-700/70 pt-4">
+            <div className="mt-3 border-t border-slate-200/70 dark:border-slate-700/70 pt-3">
               <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Or use email</p>
             </div>
-            <div className="mt-3 flex items-center gap-2">
-              <button type="button" onClick={() => setAuthMode("login")} className={`h-9 px-3 rounded-md border text-sm ${authMode === "login" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>
+            <div className="mt-2.5 flex items-center gap-2">
+              <button type="button" onClick={() => setAuthMode("login")} className={`h-8 px-3 rounded-md border text-xs sm:text-sm ${authMode === "login" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>
                 Login
               </button>
-              <button type="button" onClick={() => setAuthMode("signup")} className={`h-9 px-3 rounded-md border text-sm ${authMode === "signup" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>
+              <button type="button" onClick={() => setAuthMode("signup")} className={`h-8 px-3 rounded-md border text-xs sm:text-sm ${authMode === "signup" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>
                 Signup
               </button>
             </div>
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="mt-2.5 grid grid-cols-1 md:grid-cols-4 gap-2">
               {authMode === "signup" ? (
                 <input value={authName} onChange={(e) => setAuthName(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Display name" />
               ) : null}
               <input value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Email" />
               <input value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} type="password" className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Password" />
-              <button type="button" onClick={() => void handleAuthSubmit()} className="h-10 px-3 rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-sm font-medium">
+              <button type="button" onClick={() => void handleAuthSubmit()} className="h-10 px-3 rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs sm:text-sm font-medium">
                 {authMode === "signup" ? "Create Account" : "Login"}
               </button>
             </div>
           </section>
         ) : (
-          <section className="mb-5 rounded-xl card-surface p-4">
+          <section className="mb-3 sm:mb-4 rounded-xl card-surface p-3">
             <div className="flex items-center gap-3">
               <Avatar name={user.displayName} avatarUrl={user.avatarUrl} />
               <div>
-                <p className="text-sm font-semibold">{user.displayName}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-300">{user.email}</p>
+                <p className="text-xs sm:text-sm font-semibold">{user.displayName}</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-300">{user.email}</p>
               </div>
             </div>
           </section>
         )}
 
         <div className={tab === "map" ? "" : "hidden"} aria-hidden={tab !== "map"}>
-          <div ref={mapSectionRef} className="grid grid-cols-1 xl:grid-cols-[340px_1fr_320px] gap-4">
-            <section className="sm:hidden rounded-xl card-surface p-2.5">
+          <div ref={mapSectionRef} className="grid grid-cols-1 xl:grid-cols-[320px_1fr_300px] gap-3">
+            <section className="sm:hidden rounded-xl card-surface p-2">
               <div className="grid grid-cols-3 gap-2">
                 <button type="button" onClick={() => setMobileMapPane("create")} className={`h-9 rounded-md text-xs font-medium border ${mobileMapPane === "create" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>Create</button>
                 <button type="button" onClick={() => setMobileMapPane("feed")} className={`h-9 rounded-md text-xs font-medium border ${mobileMapPane === "feed" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>Feed</button>
@@ -1166,14 +1148,14 @@ export default function HangoutApp({
               </div>
             </section>
 
-            <section className={`rounded-xl card-surface p-4 ${mobileMapPane !== "create" ? "hidden sm:block" : ""}`}>
+            <section className={`rounded-xl card-surface p-3 ${mobileMapPane !== "create" ? "hidden sm:block" : ""}`}>
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold">Create Post</h2>
                 <button type="button" onClick={resetCreateForm} className="text-xs text-slate-600 dark:text-slate-300">
                   Reset
                 </button>
               </div>
-              <div className="mt-3 space-y-3">
+              <div className="mt-2.5 space-y-2.5">
                 <input value={title} onChange={(e) => setTitle(e.target.value)} className="h-10 w-full px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Task or meetup title" />
                 <input value={location} onChange={(e) => setLocation(e.target.value)} className="h-10 w-full px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Location name" />
                 <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full min-h-24 px-3 py-2 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Details" />
@@ -1231,7 +1213,7 @@ export default function HangoutApp({
             </section>
 
             <section className={`rounded-xl card-surface overflow-hidden ${mobileMapPane !== "feed" ? "hidden sm:block" : ""}`}>
-              <div className="p-4 border-b border-slate-300/60 dark:border-slate-700/70">
+              <div className="p-3 border-b border-slate-300/60 dark:border-slate-700/70">
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-2">
                   <input value={search} onChange={(e) => setSearch(e.target.value)} type="search" placeholder="Search posts, location, host" className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent text-sm" />
                   <select value={filterType} onChange={(e) => setFilterType(e.target.value as "all" | ActivityType)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent text-sm">
@@ -1332,8 +1314,8 @@ export default function HangoutApp({
               </div>
             </section>
 
-            <section className={`rounded-xl card-surface p-4 ${mobileMapPane !== "details" ? "hidden sm:block" : ""}`}>
-              <h2 className="text-sm font-semibold">Post Details</h2>
+            <section className={`rounded-xl card-surface p-3 ${mobileMapPane !== "details" ? "hidden sm:block" : ""}`}>
+              <h2 className="text-xs sm:text-sm font-semibold">Post Details</h2>
               {!selectedActivity ? (
                 <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">Select a post from the map feed.</p>
               ) : (
@@ -1387,22 +1369,22 @@ export default function HangoutApp({
           </div>
         </div>
         <div className={tab === "profiles" ? "" : "hidden"} aria-hidden={tab !== "profiles"}>
-          <div ref={profilesSectionRef} className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-4">
-            <section className="sm:hidden rounded-xl card-surface p-2.5">
+          <div ref={profilesSectionRef} className="grid grid-cols-1 xl:grid-cols-[300px_1fr] gap-3">
+            <section className="sm:hidden rounded-xl card-surface p-2">
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => setMobileProfilesPane("list")} className={`h-9 rounded-md text-xs font-medium border ${mobileProfilesPane === "list" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>People</button>
                 <button type="button" onClick={() => setMobileProfilesPane("detail")} className={`h-9 rounded-md text-xs font-medium border ${mobileProfilesPane === "detail" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>Profile</button>
               </div>
             </section>
 
-            <section className={`rounded-xl card-surface p-4 ${mobileProfilesPane !== "list" ? "hidden sm:block" : ""}`}>
+            <section className={`rounded-xl card-surface p-3 ${mobileProfilesPane !== "list" ? "hidden sm:block" : ""}`}>
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold">Community</h2>
                 <button type="button" onClick={() => void refreshProfiles()} className="text-xs text-slate-600 dark:text-slate-300">
                   Refresh
                 </button>
               </div>
-              <div className="mt-3 space-y-2 max-h-[760px] overflow-auto">
+              <div className="mt-2.5 space-y-2 max-h-[760px] overflow-auto">
                 {profiles.map((profile) => (
                   <button key={profile.id} type="button" onClick={() => { setSelectedProfileId(profile.id); if (isMobileViewport()) setMobileProfilesPane("detail"); }} className={`w-full text-left p-3 rounded-md border ${selectedProfileId === profile.id ? "border-slate-900 dark:border-white" : "border-slate-300/70 dark:border-slate-700"} hover:bg-slate-100/50 dark:hover:bg-slate-800/40`}>
                     <div className="flex items-center gap-2">
@@ -1426,7 +1408,7 @@ export default function HangoutApp({
               </div>
             </section>
 
-            <section className={`rounded-xl card-surface p-4 ${mobileProfilesPane !== "detail" ? "hidden sm:block" : ""}`}>
+            <section className={`rounded-xl card-surface p-3 ${mobileProfilesPane !== "detail" ? "hidden sm:block" : ""}`}>
               {loadingProfile ? (
                 <p className="text-sm text-slate-600 dark:text-slate-300">Loading profile...</p>
               ) : !profileDetail ? (
