@@ -43,7 +43,7 @@ type ProfileDetail = {
 function formatWhen(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "Unknown";
-  return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "UTC" });
+  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {

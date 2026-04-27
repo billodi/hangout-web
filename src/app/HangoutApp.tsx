@@ -154,14 +154,13 @@ function clampInt(value: string, min: number, max: number): number | null {
 function formatWhen(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "Unknown";
-  return d.toLocaleString("en-US", {
+  return d.toLocaleString(undefined, {
     weekday: "short",
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
-    timeZone: "UTC",
   });
 }
 

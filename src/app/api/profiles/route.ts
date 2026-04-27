@@ -24,7 +24,8 @@ export async function GET() {
       avatarUrl: users.avatarUrl,
       createdAt: users.createdAt,
     })
-    .from(users);
+    .from(users)
+    .where(sql`${users.isAdmin} = 0`);
 
   const createdRows = await db
     .select({

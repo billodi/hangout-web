@@ -9,6 +9,7 @@ export const users = pgTable("users", {
   displayName: text("display_name").notNull(),
   bio: text("bio").notNull().default(""),
   avatarUrl: text("avatar_url"),
+  isAdmin: integer("is_admin").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
 });
 
