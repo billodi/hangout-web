@@ -4,6 +4,7 @@ export const runtime = "nodejs";
 import { getDb } from "@/db";
 import { activityParticipants, activities, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { purgeClosedActivities } from "@/lib/activityRetention";
 import { asc, eq, inArray } from "drizzle-orm";
 
 type CreatePayload = {
@@ -61,6 +62,7 @@ export async function GET() {
     return Response.json({ error: e instanceof Error ? e.message : "DB not configured" }, { status: 500 });
   }
   const currentUser = await getCurrentUser();
+  await purgeClosedActivities(db);
   const rows = await db.select().from(activities).orderBy(asc(activities.whenISO));
 
   const creatorIds = [...new Set(rows.map((row) => row.creatorId).filter((v): v is string => !!v))];

@@ -384,6 +384,14 @@ export default function HangoutApp({
   const isSelectedActivityOwner = !!(selectedActivity && userId && selectedActivity.creatorId === userId);
   const communitySeparated = true;
 
+  function invalidateMapSoon(delays: number[] = [60, 180, 420]) {
+    for (const delay of delays) {
+      window.setTimeout(() => {
+        mapRef.current?.invalidateSize(true);
+      }, delay);
+    }
+  }
+
   useEffect(() => {
     const timer = window.setInterval(() => setNowTick(Date.now()), 30_000);
     return () => window.clearInterval(timer);
@@ -503,6 +511,7 @@ export default function HangoutApp({
         }).addTo(map);
         mapRef.current = map;
         markersLayerRef.current = L.layerGroup().addTo(map);
+        invalidateMapSoon([0, 120, 260]);
       }
 
       if (!pickerMapRef.current && pickerMapElRef.current) {
@@ -545,7 +554,26 @@ export default function HangoutApp({
     if (activeView !== "map") return;
     const map = mapRef.current;
     if (!map) return;
-    window.setTimeout(() => map.invalidateSize(), 120);
+    invalidateMapSoon();
+  }, [activeView]);
+
+  useEffect(() => {
+    if (activeView !== "map") return;
+
+    const onResize = () => invalidateMapSoon([0, 120]);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") invalidateMapSoon([0, 120, 260]);
+    };
+
+    window.addEventListener("resize", onResize);
+    window.addEventListener("focus", onResize);
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("focus", onResize);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [activeView]);
 
   useEffect(() => {

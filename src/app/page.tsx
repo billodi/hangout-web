@@ -2,6 +2,7 @@ import HangoutApp from "./HangoutApp";
 import { getDb } from "@/db";
 import { activityParticipants, activities, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { purgeClosedActivities } from "@/lib/activityRetention";
 import { asc, eq, inArray } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,7 @@ export default async function Home() {
 
   try {
     const db = getDb();
+    await purgeClosedActivities(db);
     const rows = await db.select().from(activities).orderBy(asc(activities.whenISO));
     const creatorIds = [...new Set(rows.map((row) => row.creatorId).filter((v): v is string => !!v))];
     const creators =
