@@ -293,6 +293,16 @@ export default function HangoutApp({
   const [pinSearchQuery, setPinSearchQuery] = useState("");
   const [pinSearchResults, setPinSearchResults] = useState<NominatimResult[]>([]);
   const [pinSearchLoading, setPinSearchLoading] = useState(false);
+  const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
+  const [editActivityTitle, setEditActivityTitle] = useState("");
+  const [editActivityDescription, setEditActivityDescription] = useState("");
+  const [editActivityLocation, setEditActivityLocation] = useState("");
+  const [editActivityDate, setEditActivityDate] = useState(() => toDateInput(new Date()));
+  const [editActivityTime, setEditActivityTime] = useState(() => toTimeInput(new Date()));
+  const [editActivityType, setEditActivityType] = useState<ActivityType>("chill");
+  const [editActivityLimit, setEditActivityLimit] = useState("");
+  const [editActivityLat, setEditActivityLat] = useState("");
+  const [editActivityLng, setEditActivityLng] = useState("");
 
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [authName, setAuthName] = useState("");
@@ -370,6 +380,7 @@ export default function HangoutApp({
   );
 
   const selectedTypeMeta = selectedActivity ? TYPE_META[selectedActivity.type] : null;
+  const isSelectedActivityOwner = !!(selectedActivity && userId && selectedActivity.creatorId === userId);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNowTick(Date.now()), 30_000);
@@ -798,6 +809,105 @@ export default function HangoutApp({
       setPinSearchResults([]);
     } catch (error) {
       setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not create activity" });
+    }
+  }
+
+  function beginEditActivity(activity: Activity) {
+    const dt = new Date(activity.whenISO);
+    setEditingActivityId(activity.id);
+    setEditActivityTitle(activity.title);
+    setEditActivityDescription(activity.description ?? "");
+    setEditActivityLocation(activity.location);
+    setEditActivityDate(toDateInput(dt));
+    setEditActivityTime(toTimeInput(dt));
+    setEditActivityType(activity.type);
+    setEditActivityLimit(activity.limit === null ? "" : String(activity.limit));
+    setEditActivityLat(typeof activity.lat === "number" ? activity.lat.toFixed(6) : "");
+    setEditActivityLng(typeof activity.lng === "number" ? activity.lng.toFixed(6) : "");
+  }
+
+  function cancelEditActivity() {
+    setEditingActivityId(null);
+  }
+
+  async function saveActivityEdits() {
+    if (!editingActivityId) return;
+    if (!userId) {
+      setToast({ tone: "error", message: "Login required" });
+      return;
+    }
+
+    const cleanTitle = safeText(editActivityTitle);
+    const cleanDescription = safeText(editActivityDescription);
+    const cleanLocation = safeText(editActivityLocation);
+    const latNum = Number.parseFloat(editActivityLat);
+    const lngNum = Number.parseFloat(editActivityLng);
+    const limitNum = editActivityLimit.trim() ? clampInt(editActivityLimit, 2, 200) : null;
+
+    if (!cleanTitle || !cleanLocation || !Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+      setToast({ tone: "error", message: "Title, location, and map pin are required." });
+      return;
+    }
+
+    const when = new Date(`${editActivityDate}T${editActivityTime}:00`);
+    if (Number.isNaN(when.getTime())) {
+      setToast({ tone: "error", message: "Pick a valid date and time." });
+      return;
+    }
+
+    try {
+      const updated = await apiFetch<Activity>(`/api/activities/${editingActivityId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: cleanTitle,
+          description: cleanDescription || null,
+          location: cleanLocation,
+          lat: latNum,
+          lng: lngNum,
+          whenISO: when.toISOString(),
+          type: editActivityType,
+          limit: limitNum,
+        }),
+      });
+
+      setActivities((prev) =>
+        prev.map((row) =>
+          row.id === updated.id
+            ? {
+                ...row,
+                ...updated,
+                creatorName: row.creatorName,
+                joined: row.joined,
+              }
+            : row,
+        ),
+      );
+      setEditingActivityId(null);
+      setToast({ tone: "info", message: "Activity updated." });
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not update activity" });
+    }
+  }
+
+  async function deleteActivity(activityId: string) {
+    if (!userId) {
+      setToast({ tone: "error", message: "Login required" });
+      return;
+    }
+    if (!window.confirm("Delete this activity? This cannot be undone.")) return;
+
+    try {
+      await apiFetch<{ ok: boolean }>(`/api/activities/${activityId}`, { method: "DELETE" });
+      let nextRows: Activity[] = [];
+      setActivities((prev) => {
+        nextRows = prev.filter((row) => row.id !== activityId);
+        return nextRows;
+      });
+      setSelectedActivityId((curr) => (curr === activityId ? nextRows[0]?.id ?? null : curr));
+      setEditingActivityId((curr) => (curr === activityId ? null : curr));
+      setToast({ tone: "info", message: "Activity deleted." });
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not delete activity" });
     }
   }
 
@@ -1278,6 +1388,72 @@ export default function HangoutApp({
                   >
                     {selectedActivity.joined ? "Leave" : "Join"}
                   </button>
+
+                  {isSelectedActivityOwner ? (
+                    <div className="mt-2 space-y-2">
+                      {editingActivityId === selectedActivity.id ? (
+                        <div className="rounded-xl border border-white/20 bg-black/20 p-2 space-y-2">
+                          <p className="text-xs font-semibold text-white/85">Edit activity</p>
+                          <input
+                            value={editActivityTitle}
+                            onChange={(event) => setEditActivityTitle(event.target.value)}
+                            placeholder="Title"
+                            className="field"
+                          />
+                          <textarea
+                            value={editActivityDescription}
+                            onChange={(event) => setEditActivityDescription(event.target.value)}
+                            placeholder="Description"
+                            className="field min-h-20"
+                          />
+                          <input
+                            value={editActivityLocation}
+                            onChange={(event) => setEditActivityLocation(event.target.value)}
+                            placeholder="Location"
+                            className="field"
+                          />
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <input type="date" value={editActivityDate} onChange={(event) => setEditActivityDate(event.target.value)} className="field" />
+                            <input type="time" value={editActivityTime} onChange={(event) => setEditActivityTime(event.target.value)} className="field" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <select value={editActivityType} onChange={(event) => setEditActivityType(event.target.value as ActivityType)} className="field">
+                              <option value="chill">Chill</option>
+                              <option value="active">Active</option>
+                              <option value="help">Help</option>
+                            </select>
+                            <input
+                              value={editActivityLimit}
+                              onChange={(event) => setEditActivityLimit(event.target.value)}
+                              placeholder="Limit optional"
+                              className="field"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <input value={editActivityLat} onChange={(event) => setEditActivityLat(event.target.value)} placeholder="Lat" className="field" />
+                            <input value={editActivityLng} onChange={(event) => setEditActivityLng(event.target.value)} placeholder="Lng" className="field" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <button type="button" className="action-primary" onClick={() => void saveActivityEdits()}>
+                              Save
+                            </button>
+                            <button type="button" className="action-ghost" onClick={cancelEditActivity}>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button type="button" className="action-ghost" onClick={() => beginEditActivity(selectedActivity)}>
+                            Edit
+                          </button>
+                          <button type="button" className="action-ghost" onClick={() => void deleteActivity(selectedActivity.id)}>
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
                 </article>
               ) : null}
             </aside>
