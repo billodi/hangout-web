@@ -985,22 +985,22 @@ export default function HangoutApp({
   }
 
   return (
-    <div className="min-h-dvh text-white pb-24 lg:pb-8">
+    <div className="min-h-dvh text-white pb-12 lg:pb-8">
       <div className="aurora aurora-a" />
       <div className="aurora aurora-b" />
 
-      <header className="relative z-10 mx-auto max-w-[1500px] px-4 pt-6 lg:px-8 lg:pt-8">
-        <div className="shell-panel p-4 lg:p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <header className="relative z-10 mx-auto max-w-[1500px] px-3 pt-3 lg:px-8 lg:pt-8">
+        <div className="shell-panel p-3 lg:p-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="label-kicker">Urban Social Atlas</p>
-              <h1 className="mt-2 text-3xl font-bold tracking-tight lg:text-5xl">Hangout Control Room</h1>
-              <p className="mt-2 text-sm text-white/75 lg:text-base">
+              <h1 className="mt-1 text-2xl font-bold tracking-tight lg:text-5xl">Hangout Control Room</h1>
+              <p className="mt-1 text-xs text-white/75 lg:text-base">
                 Plan local moments, monitor map activity in real-time, and keep your community reputation growing.
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 lg:gap-3 min-w-[280px]">
+            <div className="grid grid-cols-3 gap-1.5 lg:gap-3 min-w-[240px]">
               <div className="metric-card">
                 <p className="metric-label">Upcoming</p>
                 <p className="metric-value">{upcomingCount}</p>
@@ -1016,7 +1016,7 @@ export default function HangoutApp({
             </div>
           </div>
 
-          <div className="mt-4 flex items-center gap-2">
+          <div className="mt-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
             <button
               type="button"
               onClick={() => setActiveView("map")}
@@ -1040,7 +1040,7 @@ export default function HangoutApp({
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto mt-4 max-w-[1500px] px-4 lg:px-8">
+      <main className="relative z-10 mx-auto mt-2 max-w-[1500px] px-3 lg:mt-4 lg:px-8">
         {!backendOk ? (
           <section className="shell-panel p-4 lg:p-6 mb-4">
             <h2 className="text-xl font-semibold">Backend unavailable</h2>
@@ -1049,9 +1049,9 @@ export default function HangoutApp({
         ) : null}
 
         {activeView === "map" ? (
-          <section className="grid gap-4 lg:grid-cols-[350px_1fr_360px]">
-            <aside className="shell-panel p-4 lg:p-5 space-y-4">
-              <section className="space-y-3">
+          <section className="grid gap-3 lg:gap-4 lg:grid-cols-[350px_1fr_360px]">
+            <aside className="shell-panel p-3 lg:p-5 space-y-3 lg:space-y-4">
+              <section className="space-y-2.5">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold">Filters</h2>
                   <button type="button" className="link-btn" onClick={() => void refreshActivities()}>
@@ -1085,18 +1085,18 @@ export default function HangoutApp({
                 </label>
               </section>
 
-              <section className="space-y-3">
+              <section className="space-y-2.5">
                 <h2 className="text-lg font-semibold">Create activity</h2>
                 <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title" className="field" />
                 <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description" className="field min-h-20" />
                 <input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Location label" className="field" />
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1.5 lg:gap-2">
                   <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="field" />
                   <input type="time" value={time} onChange={(event) => setTime(event.target.value)} className="field" />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1.5 lg:gap-2">
                   <select value={type} onChange={(event) => setType(event.target.value as ActivityType)} className="field">
                     <option value="chill">Chill</option>
                     <option value="active">Active</option>
@@ -1105,8 +1105,8 @@ export default function HangoutApp({
                   <input value={limit} onChange={(event) => setLimit(event.target.value)} placeholder="Limit optional" className="field" />
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5">
                     <input
                       value={pinSearchQuery}
                       onChange={(event) => setPinSearchQuery(event.target.value)}
@@ -1119,7 +1119,7 @@ export default function HangoutApp({
                   </div>
 
                   {pinSearchResults.length > 0 ? (
-                    <div className="max-h-32 overflow-auto rounded-xl border border-white/15 bg-black/20">
+                    <div className="max-h-24 overflow-auto rounded-xl border border-white/15 bg-black/20">
                       {pinSearchResults.map((row) => (
                         <button
                           key={row.place_id}
@@ -1133,12 +1133,12 @@ export default function HangoutApp({
                     </div>
                   ) : null}
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-1.5 lg:gap-2">
                     <input value={pinLat} onChange={(event) => setPinLat(event.target.value)} placeholder="Lat" className="field" />
                     <input value={pinLng} onChange={(event) => setPinLng(event.target.value)} placeholder="Lng" className="field" />
                   </div>
 
-                  <div ref={pickerMapElRef} className="h-40 rounded-2xl border border-white/20 overflow-hidden" />
+                  <div ref={pickerMapElRef} className="h-32 sm:h-36 lg:h-40 rounded-2xl border border-white/20 overflow-hidden" />
                 </div>
 
                 <button type="button" className="action-primary w-full" onClick={() => void createActivity()}>
@@ -1146,7 +1146,7 @@ export default function HangoutApp({
                 </button>
               </section>
 
-              <section className="space-y-3">
+              <section className="space-y-2.5">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold">Account</h2>
                   {user ? (
@@ -1195,14 +1195,14 @@ export default function HangoutApp({
               </section>
             </aside>
 
-            <section className="shell-panel p-3 lg:p-4">
-              <div ref={mapElRef} className="h-[320px] lg:h-[760px] rounded-[20px] overflow-hidden border border-white/20" />
+            <section className="shell-panel p-2.5 lg:p-4">
+              <div ref={mapElRef} className="h-[250px] sm:h-[300px] lg:h-[760px] rounded-[16px] lg:rounded-[20px] overflow-hidden border border-white/20" />
             </section>
 
-            <aside className="shell-panel p-4 lg:p-5 space-y-3">
+            <aside className="shell-panel p-3 lg:p-5 space-y-2.5 lg:space-y-3">
               <h2 className="text-lg font-semibold">Activity rail</h2>
 
-              <div className="max-h-[280px] lg:max-h-[460px] overflow-auto space-y-2 pr-1">
+              <div className="max-h-[210px] sm:max-h-[260px] lg:max-h-[460px] overflow-auto space-y-1.5 lg:space-y-2 pr-1">
                 {filteredActivities.length === 0 ? (
                   <p className="text-sm text-white/70">No activities found.</p>
                 ) : (
@@ -1240,14 +1240,14 @@ export default function HangoutApp({
               </div>
 
               {selectedActivity ? (
-                <article className="rounded-2xl border border-white/20 bg-black/25 p-3">
+                <article className="rounded-2xl border border-white/20 bg-black/25 p-2.5 lg:p-3">
                   <div className="overflow-hidden rounded-xl border border-white/10">
                     <Image
                       src={TYPE_META[selectedActivity.type].scene}
                       alt={selectedActivity.type}
                       width={900}
                       height={420}
-                      className="h-32 w-full object-cover"
+                      className="h-24 sm:h-28 lg:h-32 w-full object-cover"
                     />
                   </div>
 
@@ -1283,8 +1283,8 @@ export default function HangoutApp({
             </aside>
           </section>
         ) : (
-          <section className="grid gap-4 lg:grid-cols-[340px_1fr]">
-            <aside className="shell-panel p-4 lg:p-5">
+          <section className="grid gap-3 lg:gap-4 lg:grid-cols-[340px_1fr]">
+            <aside className="shell-panel p-3 lg:p-5">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">People</h2>
                 <button type="button" onClick={() => void refreshProfiles()} className="link-btn">
@@ -1292,7 +1292,7 @@ export default function HangoutApp({
                 </button>
               </div>
 
-              <div className="mt-3 max-h-[780px] overflow-auto space-y-2 pr-1">
+              <div className="mt-2 max-h-[250px] sm:max-h-[360px] lg:max-h-[780px] overflow-auto space-y-1.5 lg:space-y-2 pr-1">
                 {profiles.map((profile) => (
                   <button
                     key={profile.id}
@@ -1325,15 +1325,15 @@ export default function HangoutApp({
               </div>
             </aside>
 
-            <section className="shell-panel p-4 lg:p-5">
+            <section className="shell-panel p-3 lg:p-5">
               {loadingProfile ? (
                 <p className="text-sm text-white/70">Loading profile...</p>
               ) : !profileDetail ? (
                 <p className="text-sm text-white/70">Select a profile.</p>
               ) : (
-                <div className="space-y-4">
-                  <article className="rounded-2xl border border-white/20 bg-black/20 p-4">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="space-y-3 lg:space-y-4">
+                  <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4">
+                    <div className="flex flex-col gap-3 lg:gap-4 lg:flex-row lg:items-center lg:justify-between">
                       <div className="flex items-center gap-3">
                         <Avatar name={profileDetail.profile.displayName} avatarUrl={profileDetail.profile.avatarUrl} />
                         <div>
@@ -1342,7 +1342,7 @@ export default function HangoutApp({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 text-center">
+                      <div className="grid grid-cols-2 lg:grid-cols-5 gap-1.5 lg:gap-2 text-center">
                         <div className="metric-card"><p className="metric-label">Created</p><p className="metric-value text-xl">{profileDetail.stats.createdCount}</p></div>
                         <div className="metric-card"><p className="metric-label">Joined</p><p className="metric-value text-xl">{profileDetail.stats.joinedCount}</p></div>
                         <div className="metric-card"><p className="metric-label">Diary</p><p className="metric-value text-xl">{profileDetail.stats.diaryCount}</p></div>
@@ -1361,7 +1361,7 @@ export default function HangoutApp({
                   </article>
 
                   {user && user.id === profileDetail.profile.id ? (
-                    <article className="rounded-2xl border border-white/20 bg-black/20 p-4 space-y-2">
+                    <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4 space-y-2">
                       <h3 className="text-base font-semibold">Edit profile</h3>
                       <input value={editName} onChange={(event) => setEditName(event.target.value)} placeholder="Display name" className="field" />
                       <input value={editAvatarUrl} onChange={(event) => setEditAvatarUrl(event.target.value)} placeholder="Avatar URL" className="field" />
@@ -1373,7 +1373,7 @@ export default function HangoutApp({
                   ) : null}
 
                   {!user ? (
-                    <article className="rounded-2xl border border-white/20 bg-black/20 p-4 space-y-2">
+                    <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4 space-y-2">
                       <h3 className="text-base font-semibold">Reviews need an account</h3>
                       <p className="text-sm text-white/70">Login first, then join shared activities to unlock reputation reviews.</p>
                       <button type="button" className="action-primary" onClick={startGoogleLogin}>
@@ -1383,7 +1383,7 @@ export default function HangoutApp({
                   ) : null}
 
                   {user && user.id !== profileDetail.profile.id ? (
-                    <article className="rounded-2xl border border-white/20 bg-black/20 p-4 space-y-2">
+                    <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4 space-y-2">
                       <h3 className="text-base font-semibold">Write review</h3>
                       <div className="flex items-center gap-2 flex-wrap">
                         <button
@@ -1421,7 +1421,7 @@ export default function HangoutApp({
                         </p>
                       )}
 
-                      <div className="grid grid-cols-[120px_1fr] gap-2">
+                      <div className="grid grid-cols-[96px_1fr] sm:grid-cols-[120px_1fr] gap-1.5 lg:gap-2">
                         <select value={reviewRating} onChange={(event) => setReviewRating(event.target.value)} className="field">
                           <option value="5">5 stars</option>
                           <option value="4">4 stars</option>
@@ -1444,7 +1444,7 @@ export default function HangoutApp({
                   ) : null}
 
                   {user && user.id === profileDetail.profile.id ? (
-                    <article className="rounded-2xl border border-white/20 bg-black/20 p-4 space-y-2">
+                    <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4 space-y-2">
                       <h3 className="text-base font-semibold">Add diary entry</h3>
                       <input value={galleryImageUrl} onChange={(event) => setGalleryImageUrl(event.target.value)} placeholder="Image URL" className="field" />
                       <input value={galleryCaption} onChange={(event) => setGalleryCaption(event.target.value)} placeholder="Caption" className="field" />
@@ -1460,7 +1460,7 @@ export default function HangoutApp({
                   ) : null}
 
                   {profileDetail.recentActivities.length > 0 ? (
-                    <article className="rounded-2xl border border-white/20 bg-black/20 p-4">
+                    <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4">
                       <h3 className="text-base font-semibold">Recent activities</h3>
                       <div className="mt-2 space-y-2">
                         {profileDetail.recentActivities.slice(0, 5).map((activity) => (
@@ -1478,7 +1478,7 @@ export default function HangoutApp({
                     </article>
                   ) : null}
 
-                  <article className="rounded-2xl border border-white/20 bg-black/20 p-4">
+                    <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4">
                     <h3 className="text-base font-semibold">Reviews</h3>
                     {profileDetail.reviews.length === 0 ? (
                       <p className="mt-2 text-sm text-white/70">No reviews yet.</p>
@@ -1503,12 +1503,12 @@ export default function HangoutApp({
                     )}
                   </article>
 
-                  <article className="rounded-2xl border border-white/20 bg-black/20 p-4">
+                    <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4">
                     <h3 className="text-base font-semibold">Photo diary</h3>
                     {profileDetail.gallery.length === 0 ? (
                       <p className="mt-2 text-sm text-white/70">No entries yet.</p>
                     ) : (
-                      <div className="mt-2 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                      <div className="mt-2 grid grid-cols-1 lg:grid-cols-2 gap-2 lg:gap-3">
                         {profileDetail.gallery.map((entry) => (
                           <div key={entry.id} className="rounded-xl border border-white/15 bg-white/5 overflow-hidden">
                             <div className="relative h-40 w-full">

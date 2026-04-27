@@ -156,6 +156,7 @@ h6,
   color: #dce8f9;
   background: #ffffff0f;
   transition: all 140ms ease;
+  white-space: nowrap;
 }
 
 .tab-chip:hover {
@@ -197,6 +198,7 @@ h6,
   font-size: 0.88rem;
   font-weight: 600;
   transition: transform 120ms ease, filter 120ms ease;
+  white-space: nowrap;
 }
 
 .action-primary:hover:not(:disabled) {
@@ -217,6 +219,7 @@ h6,
   padding: 0.56rem 0.9rem;
   font-size: 0.88rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .action-ghost:disabled {
@@ -233,8 +236,61 @@ h6,
   text-underline-offset: 2px;
 }
 
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 @media (max-width: 1024px) {
   .aurora {
     opacity: 0.32;
+  }
+}
+
+@media (max-width: 640px) {
+  .shell-panel {
+    border-radius: 16px;
+  }
+
+  .label-kicker {
+    font-size: 10px;
+    letter-spacing: 0.13em;
+  }
+
+  .metric-card {
+    border-radius: 11px;
+    padding: 0.42rem;
+  }
+
+  .metric-label {
+    font-size: 9px;
+    letter-spacing: 0.06em;
+  }
+
+  .metric-value {
+    margin-top: 0.15rem;
+    font-size: 1.05rem;
+  }
+
+  .tab-chip {
+    padding: 0.34rem 0.68rem;
+    font-size: 0.74rem;
+  }
+
+  .field {
+    border-radius: 10px;
+    padding: 0.46rem 0.58rem;
+    font-size: 0.82rem;
+  }
+
+  .action-primary,
+  .action-ghost {
+    border-radius: 10px;
+    padding: 0.45rem 0.68rem;
+    font-size: 0.8rem;
   }
 }
