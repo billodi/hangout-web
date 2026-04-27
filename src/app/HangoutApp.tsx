@@ -289,7 +289,6 @@ export default function HangoutApp({
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("");
   const [date, setDate] = useState(() => toDateInput(new Date()));
   const [time, setTime] = useState(() => toTimeInput(new Date()));
   const [type, setType] = useState<ActivityType>("chill");
@@ -299,6 +298,9 @@ export default function HangoutApp({
   const [pinSearchQuery, setPinSearchQuery] = useState("");
   const [pinSearchResults, setPinSearchResults] = useState<NominatimResult[]>([]);
   const [pinSearchLoading, setPinSearchLoading] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showEditActivityModal, setShowEditActivityModal] = useState(false);
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
   const [editActivityTitle, setEditActivityTitle] = useState("");
   const [editActivityDescription, setEditActivityDescription] = useState("");
@@ -441,6 +443,17 @@ export default function HangoutApp({
   }, [toast]);
 
   useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setShowCreateModal(false);
+      setShowAuthModal(false);
+      setShowEditActivityModal(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
     if (bootProfilesLoadedRef.current) return;
     bootProfilesLoadedRef.current = true;
     void (async () => {
@@ -520,6 +533,15 @@ export default function HangoutApp({
         invalidateMapSoon([0, 120, 260]);
       }
 
+      if (pickerMapRef.current) {
+        const connected = pickerMapRef.current.getContainer()?.isConnected ?? false;
+        if (!connected) {
+          pickerMapRef.current.remove();
+          pickerMapRef.current = null;
+          pickerMarkerRef.current = null;
+        }
+      }
+
       if (!pickerMapRef.current && pickerMapElRef.current) {
         const pickerMap = L.map(pickerMapElRef.current, {
           center: [24.7136, 46.6753],
@@ -548,13 +570,14 @@ export default function HangoutApp({
         });
 
         pickerMapRef.current = pickerMap;
+        invalidateMapSoon([0, 120, 260]);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [activeView]);
+  }, [activeView, showCreateModal, showEditActivityModal]);
 
   useEffect(() => {
     if (activeView !== "map") return;
@@ -562,6 +585,13 @@ export default function HangoutApp({
     if (!map) return;
     invalidateMapSoon();
   }, [activeView]);
+
+  useEffect(() => {
+    if (!showCreateModal && !showEditActivityModal) return;
+    const pickerMap = pickerMapRef.current;
+    if (!pickerMap) return;
+    window.setTimeout(() => pickerMap.invalidateSize(), 90);
+  }, [showCreateModal, showEditActivityModal]);
 
   useEffect(() => {
     if (activeView !== "map") return;
@@ -768,13 +798,14 @@ export default function HangoutApp({
     }
   }
 
-  function selectPinResult(result: NominatimResult) {
+function selectPinResult(result: NominatimResult) {
     const latNum = Number.parseFloat(result.lat);
     const lngNum = Number.parseFloat(result.lon);
     if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return;
 
-    setPinLat(latNum.toFixed(6));
-    setPinLng(lngNum.toFixed(6));
+  setPinLat(latNum.toFixed(6));
+  setPinLng(lngNum.toFixed(6));
+  setPinSearchQuery(result.display_name);
 
     const pickerMap = pickerMapRef.current;
     if (!pickerMap) return;
@@ -796,18 +827,19 @@ export default function HangoutApp({
   async function createActivity() {
     if (!userId) {
       setToast({ tone: "error", message: "Login required" });
+      setShowAuthModal(true);
       return;
     }
 
     const cleanTitle = safeText(title);
     const cleanDescription = safeText(description);
-    const cleanLocation = safeText(location);
+    const cleanLocation = safeText(pinSearchQuery);
     const latNum = Number.parseFloat(pinLat);
     const lngNum = Number.parseFloat(pinLng);
     const limitNum = limit.trim() ? clampInt(limit, 2, 200) : null;
 
     if (!cleanTitle || !cleanLocation || !Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
-      setToast({ tone: "error", message: "Title, location, and map pin are required." });
+      setToast({ tone: "error", message: "Title, pin search text, and map pin are required." });
       return;
     }
 
@@ -835,10 +867,10 @@ export default function HangoutApp({
       setActivities((prev) => [...prev, created]);
       setSelectedActivityId(created.id);
       setToast({ tone: "info", message: "Activity posted." });
+      setShowCreateModal(false);
 
       setTitle("");
       setDescription("");
-      setLocation("");
       setType("chill");
       setLimit("");
       setPinSearchQuery("");
@@ -860,10 +892,12 @@ export default function HangoutApp({
     setEditActivityLimit(activity.limit === null ? "" : String(activity.limit));
     setEditActivityLat(typeof activity.lat === "number" ? activity.lat.toFixed(6) : "");
     setEditActivityLng(typeof activity.lng === "number" ? activity.lng.toFixed(6) : "");
+    setShowEditActivityModal(true);
   }
 
   function cancelEditActivity() {
     setEditingActivityId(null);
+    setShowEditActivityModal(false);
   }
 
   async function saveActivityEdits() {
@@ -919,6 +953,7 @@ export default function HangoutApp({
         ),
       );
       setEditingActivityId(null);
+      setShowEditActivityModal(false);
       setToast({ tone: "info", message: "Activity updated." });
     } catch (error) {
       setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not update activity" });
@@ -928,6 +963,7 @@ export default function HangoutApp({
   async function deleteActivity(activityId: string) {
     if (!userId) {
       setToast({ tone: "error", message: "Login required" });
+      setShowAuthModal(true);
       return;
     }
     if (!window.confirm("Delete this activity? This cannot be undone.")) return;
@@ -950,6 +986,10 @@ export default function HangoutApp({
   async function toggleJoin(activity: Activity) {
     if (!userId) {
       setToast({ tone: "error", message: "Login required" });
+      return;
+    }
+    if (activity.joined && activity.creatorId === userId) {
+      setToast({ tone: "error", message: "Creators cannot leave their own activity." });
       return;
     }
 
@@ -993,6 +1033,7 @@ export default function HangoutApp({
       setEditAvatarUrl(res.user.avatarUrl ?? "");
       setAuthPassword("");
       setToast({ tone: "info", message: `Welcome back ${res.user.displayName}.` });
+      setShowAuthModal(false);
       await refreshActivities();
       await refreshProfiles();
       setSelectedProfileId(res.user.id);
@@ -1017,6 +1058,7 @@ export default function HangoutApp({
       setEditAvatarUrl(res.user.avatarUrl ?? "");
       setAuthPassword("");
       setToast({ tone: "info", message: `Account created for ${res.user.displayName}.` });
+      setShowAuthModal(false);
       await refreshActivities();
       await refreshProfiles();
       setSelectedProfileId(res.user.id);
@@ -1173,8 +1215,6 @@ export default function HangoutApp({
             <Link href="/community" className={`tab-chip ${activeView === "profiles" ? "tab-chip-active" : ""}`}>
               Community
             </Link>
-            <Link href="/profile" className="tab-chip">Profile</Link>
-            <Link href="/reviews" className="tab-chip">Reviews</Link>
             {installPromptEvent ? (
               <button type="button" className="tab-chip ml-auto" onClick={() => void installApp()}>
                 Install App
@@ -1231,62 +1271,9 @@ export default function HangoutApp({
 
               <section className="space-y-2.5">
                 <h2 className="text-lg font-semibold">Create activity</h2>
-                <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title" className="field" />
-                <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description" className="field min-h-20" />
-                <input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Location label" className="field" />
-
-                <div className="grid grid-cols-2 gap-1.5 lg:gap-2">
-                  <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="field" />
-                  <input type="time" value={time} onChange={(event) => setTime(event.target.value)} className="field" />
-                </div>
-
-                <div className="grid grid-cols-2 gap-1.5 lg:gap-2">
-                  <select value={type} onChange={(event) => setType(event.target.value as ActivityType)} className="field">
-                    <option value="chill">Chill</option>
-                    <option value="active">Active</option>
-                    <option value="help">Help</option>
-                  </select>
-                  <input value={limit} onChange={(event) => setLimit(event.target.value)} placeholder="Limit optional" className="field" />
-                </div>
-
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      value={pinSearchQuery}
-                      onChange={(event) => setPinSearchQuery(event.target.value)}
-                      placeholder="Search pin location"
-                      className="field"
-                    />
-                    <button type="button" className="action-ghost whitespace-nowrap" onClick={() => void searchPinLocation()}>
-                      {pinSearchLoading ? "..." : "Find"}
-                    </button>
-                  </div>
-
-                  {pinSearchResults.length > 0 ? (
-                    <div className="max-h-24 overflow-auto rounded-xl border border-white/15 bg-black/20">
-                      {pinSearchResults.map((row) => (
-                        <button
-                          key={row.place_id}
-                          type="button"
-                          onClick={() => selectPinResult(row)}
-                          className="w-full px-3 py-2 text-left text-xs hover:bg-white/10"
-                        >
-                          {row.display_name}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  <div className="grid grid-cols-2 gap-1.5 lg:gap-2">
-                    <input value={pinLat} onChange={(event) => setPinLat(event.target.value)} placeholder="Lat" className="field" />
-                    <input value={pinLng} onChange={(event) => setPinLng(event.target.value)} placeholder="Lng" className="field" />
-                  </div>
-
-                  <div ref={pickerMapElRef} className="h-32 sm:h-36 lg:h-40 rounded-2xl border border-white/20 overflow-hidden" />
-                </div>
-
-                <button type="button" className="action-primary w-full" onClick={() => void createActivity()}>
-                  Publish Activity
+                <p className="text-sm text-white/70">Open the popup composer to post a new activity with map pin and details.</p>
+                <button type="button" className="action-primary w-full" onClick={() => setShowCreateModal(true)}>
+                  Open Create Popup
                 </button>
               </section>
 
@@ -1311,30 +1298,9 @@ export default function HangoutApp({
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {authMode === "signup" ? (
-                      <input value={authName} onChange={(event) => setAuthName(event.target.value)} placeholder="Display name" className="field" />
-                    ) : null}
-                    <input value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} placeholder="Email" className="field" />
-                    <input type="password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} placeholder="Password" className="field" />
-                    <button
-                      type="button"
-                      className="action-primary w-full"
-                      onClick={() => void (authMode === "login" ? login() : signup())}
-                    >
-                      {authMode === "login" ? "Login" : "Create account"}
-                    </button>
-                    <button type="button" className="action-ghost w-full" onClick={startGoogleLogin}>
-                      Continue with Google
-                    </button>
-                    <button
-                      type="button"
-                      className="link-btn"
-                      onClick={() => setAuthMode((prev) => (prev === "login" ? "signup" : "login"))}
-                    >
-                      {authMode === "login" ? "Need an account? Sign up" : "Already have an account? Login"}
-                    </button>
-                  </div>
+                  <button type="button" className="action-primary w-full" onClick={() => setShowAuthModal(true)}>
+                    Open Login Popup
+                  </button>
                 )}
               </section>
             </aside>
@@ -1417,75 +1383,26 @@ export default function HangoutApp({
                   <button
                     type="button"
                     className="action-primary w-full mt-3"
-                    disabled={isClosedByWhen(selectedActivity.whenISO, nowTick)}
+                    disabled={isClosedByWhen(selectedActivity.whenISO, nowTick) || (selectedActivity.joined && selectedActivity.creatorId === userId)}
                     onClick={() => void toggleJoin(selectedActivity)}
                   >
-                    {selectedActivity.joined ? "Leave" : "Join"}
+                    {selectedActivity.joined
+                      ? selectedActivity.creatorId === userId
+                        ? "Host"
+                        : "Leave"
+                      : "Join"}
                   </button>
 
                   {isSelectedActivityOwner ? (
                     <div className="mt-2 space-y-2">
-                      {editingActivityId === selectedActivity.id ? (
-                        <div className="rounded-xl border border-white/20 bg-black/20 p-2 space-y-2">
-                          <p className="text-xs font-semibold text-white/85">Edit activity</p>
-                          <input
-                            value={editActivityTitle}
-                            onChange={(event) => setEditActivityTitle(event.target.value)}
-                            placeholder="Title"
-                            className="field"
-                          />
-                          <textarea
-                            value={editActivityDescription}
-                            onChange={(event) => setEditActivityDescription(event.target.value)}
-                            placeholder="Description"
-                            className="field min-h-20"
-                          />
-                          <input
-                            value={editActivityLocation}
-                            onChange={(event) => setEditActivityLocation(event.target.value)}
-                            placeholder="Location"
-                            className="field"
-                          />
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <input type="date" value={editActivityDate} onChange={(event) => setEditActivityDate(event.target.value)} className="field" />
-                            <input type="time" value={editActivityTime} onChange={(event) => setEditActivityTime(event.target.value)} className="field" />
-                          </div>
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <select value={editActivityType} onChange={(event) => setEditActivityType(event.target.value as ActivityType)} className="field">
-                              <option value="chill">Chill</option>
-                              <option value="active">Active</option>
-                              <option value="help">Help</option>
-                            </select>
-                            <input
-                              value={editActivityLimit}
-                              onChange={(event) => setEditActivityLimit(event.target.value)}
-                              placeholder="Limit optional"
-                              className="field"
-                            />
-                          </div>
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <input value={editActivityLat} onChange={(event) => setEditActivityLat(event.target.value)} placeholder="Lat" className="field" />
-                            <input value={editActivityLng} onChange={(event) => setEditActivityLng(event.target.value)} placeholder="Lng" className="field" />
-                          </div>
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <button type="button" className="action-primary" onClick={() => void saveActivityEdits()}>
-                              Save
-                            </button>
-                            <button type="button" className="action-ghost" onClick={cancelEditActivity}>
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <button type="button" className="action-ghost" onClick={() => beginEditActivity(selectedActivity)}>
-                            Edit
-                          </button>
-                          <button type="button" className="action-ghost" onClick={() => void deleteActivity(selectedActivity.id)}>
-                            Delete
-                          </button>
-                        </div>
-                      )}
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button type="button" className="action-ghost" onClick={() => beginEditActivity(selectedActivity)}>
+                          Edit
+                        </button>
+                        <button type="button" className="action-ghost" onClick={() => void deleteActivity(selectedActivity.id)}>
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   ) : null}
                 </article>
@@ -1542,23 +1459,6 @@ export default function HangoutApp({
                 <p className="text-sm text-white/70">Select a profile.</p>
               ) : (
                 <div className="space-y-3 lg:space-y-4">
-                  {communitySeparated ? (
-                    <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4 space-y-2">
-                      <h3 className="text-base font-semibold">Account Tools</h3>
-                      <p className="text-sm text-white/70">
-                        Profile editing and reviews now live in dedicated pages so community browsing stays clean.
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        <Link href="/profile" className="action-primary">
-                          Open Profile Page
-                        </Link>
-                        <Link href="/reviews" className="action-ghost">
-                          Open Reviews Page
-                        </Link>
-                      </div>
-                    </article>
-                  ) : null}
-
                   <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4">
                     <div className="flex flex-col gap-3 lg:gap-4 lg:flex-row lg:items-center lg:justify-between">
                       <div className="flex items-center gap-3">
@@ -1609,7 +1509,7 @@ export default function HangoutApp({
                     </article>
                   ) : null}
 
-                  {user && user.id !== profileDetail.profile.id && !communitySeparated && !routeSeparatedMode ? (
+                  {user && user.id !== profileDetail.profile.id ? (
                     <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4 space-y-2">
                       <h3 className="text-base font-semibold">Write review</h3>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -1705,32 +1605,30 @@ export default function HangoutApp({
                     </article>
                   ) : null}
 
-                  {!communitySeparated ? (
-                    <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4">
-                      <h3 className="text-base font-semibold">Reviews</h3>
-                      {profileDetail.reviews.length === 0 ? (
-                        <p className="mt-2 text-sm text-white/70">No reviews yet.</p>
-                      ) : (
-                        <div className="mt-2 space-y-2">
-                          {profileDetail.reviews.map((review) => (
-                            <div key={review.id} className="rounded-xl border border-white/15 bg-white/5 p-3">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="text-sm font-semibold">{review.author?.displayName ?? "User"}</p>
-                                <p className="text-xs text-white/65">{review.rating}/5</p>
-                              </div>
-                              <p className="mt-1 text-[11px] uppercase tracking-wide text-white/55">
-                                {review.reviewType === "activity"
-                                  ? `Activity review${review.activityTitle ? ` - ${review.activityTitle}` : ""}`
-                                  : "Whole profile review"}
-                              </p>
-                              <p className="mt-1 text-sm text-white/80">{review.comment}</p>
-                              <p className="mt-1 text-xs text-white/55">{formatWhen(review.createdAt)}</p>
+                  <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4">
+                    <h3 className="text-base font-semibold">Reviews</h3>
+                    {profileDetail.reviews.length === 0 ? (
+                      <p className="mt-2 text-sm text-white/70">No reviews yet.</p>
+                    ) : (
+                      <div className="mt-2 space-y-2">
+                        {profileDetail.reviews.map((review) => (
+                          <div key={review.id} className="rounded-xl border border-white/15 bg-white/5 p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-semibold">{review.author?.displayName ?? "User"}</p>
+                              <p className="text-xs text-white/65">{review.rating}/5</p>
                             </div>
-                          ))}
-                        </div>
-                      )}
-                    </article>
-                  ) : null}
+                            <p className="mt-1 text-[11px] uppercase tracking-wide text-white/55">
+                              {review.reviewType === "activity"
+                                ? `Activity review${review.activityTitle ? ` - ${review.activityTitle}` : ""}`
+                                : "Whole profile review"}
+                            </p>
+                            <p className="mt-1 text-sm text-white/80">{review.comment}</p>
+                            <p className="mt-1 text-xs text-white/55">{formatWhen(review.createdAt)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </article>
 
                     <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4">
                     <h3 className="text-base font-semibold">Photo diary</h3>
@@ -1769,6 +1667,143 @@ export default function HangoutApp({
           </section>
         )}
       </main>
+
+      {showCreateModal ? (
+        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm p-3 lg:p-6 flex items-center justify-center" onClick={() => setShowCreateModal(false)}>
+          <section className="w-full max-w-2xl max-h-[90vh] overflow-auto shell-panel p-3 lg:p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold">Create Activity</h2>
+              <button type="button" className="action-ghost" onClick={() => setShowCreateModal(false)}>Close</button>
+            </div>
+            <div className="mt-3 space-y-2">
+              <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title" className="field" />
+              <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description" className="field min-h-20" />
+              <div className="grid grid-cols-2 gap-1.5 lg:gap-2">
+                <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="field" />
+                <input type="time" value={time} onChange={(event) => setTime(event.target.value)} className="field" />
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 lg:gap-2">
+                <select value={type} onChange={(event) => setType(event.target.value as ActivityType)} className="field">
+                  <option value="chill">Chill</option>
+                  <option value="active">Active</option>
+                  <option value="help">Help</option>
+                </select>
+                <input value={limit} onChange={(event) => setLimit(event.target.value)} placeholder="Limit optional" className="field" />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <input
+                    value={pinSearchQuery}
+                    onChange={(event) => setPinSearchQuery(event.target.value)}
+                    placeholder="Search pin location (used as location label)"
+                    className="field"
+                  />
+                  <button type="button" className="action-ghost whitespace-nowrap" onClick={() => void searchPinLocation()}>
+                    {pinSearchLoading ? "..." : "Find"}
+                  </button>
+                </div>
+                {pinSearchResults.length > 0 ? (
+                  <div className="max-h-28 overflow-auto rounded-xl border border-white/15 bg-black/20">
+                    {pinSearchResults.map((row) => (
+                      <button
+                        key={row.place_id}
+                        type="button"
+                        onClick={() => selectPinResult(row)}
+                        className="w-full px-3 py-2 text-left text-xs hover:bg-white/10"
+                      >
+                        {row.display_name}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="grid grid-cols-2 gap-1.5 lg:gap-2">
+                  <input value={pinLat} onChange={(event) => setPinLat(event.target.value)} placeholder="Lat" className="field" />
+                  <input value={pinLng} onChange={(event) => setPinLng(event.target.value)} placeholder="Lng" className="field" />
+                </div>
+                <div ref={pickerMapElRef} className="h-40 sm:h-48 rounded-2xl border border-white/20 overflow-hidden" />
+              </div>
+              <button type="button" className="action-primary w-full" onClick={() => void createActivity()}>
+                Publish Activity
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {showAuthModal ? (
+        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm p-3 lg:p-6 flex items-center justify-center" onClick={() => setShowAuthModal(false)}>
+          <section className="w-full max-w-md shell-panel p-3 lg:p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold">{authMode === "login" ? "Login" : "Create Account"}</h2>
+              <button type="button" className="action-ghost" onClick={() => setShowAuthModal(false)}>Close</button>
+            </div>
+            <div className="mt-3 space-y-2">
+              {authMode === "signup" ? (
+                <input value={authName} onChange={(event) => setAuthName(event.target.value)} placeholder="Display name" className="field" />
+              ) : null}
+              <input value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} placeholder="Email" className="field" />
+              <input type="password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} placeholder="Password" className="field" />
+              <button
+                type="button"
+                className="action-primary w-full"
+                onClick={() => void (authMode === "login" ? login() : signup())}
+              >
+                {authMode === "login" ? "Login" : "Create account"}
+              </button>
+              <button type="button" className="action-ghost w-full" onClick={startGoogleLogin}>
+                Continue with Google
+              </button>
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => setAuthMode((prev) => (prev === "login" ? "signup" : "login"))}
+              >
+                {authMode === "login" ? "Need an account? Sign up" : "Already have an account? Login"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {showEditActivityModal && editingActivityId ? (
+        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm p-3 lg:p-6 flex items-center justify-center" onClick={cancelEditActivity}>
+          <section className="w-full max-w-2xl max-h-[90vh] overflow-auto shell-panel p-3 lg:p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold">Edit Activity</h2>
+              <button type="button" className="action-ghost" onClick={cancelEditActivity}>Close</button>
+            </div>
+            <div className="mt-3 space-y-2">
+              <input value={editActivityTitle} onChange={(event) => setEditActivityTitle(event.target.value)} placeholder="Title" className="field" />
+              <textarea value={editActivityDescription} onChange={(event) => setEditActivityDescription(event.target.value)} placeholder="Description" className="field min-h-20" />
+              <input value={editActivityLocation} onChange={(event) => setEditActivityLocation(event.target.value)} placeholder="Location" className="field" />
+              <div className="grid grid-cols-2 gap-1.5">
+                <input type="date" value={editActivityDate} onChange={(event) => setEditActivityDate(event.target.value)} className="field" />
+                <input type="time" value={editActivityTime} onChange={(event) => setEditActivityTime(event.target.value)} className="field" />
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <select value={editActivityType} onChange={(event) => setEditActivityType(event.target.value as ActivityType)} className="field">
+                  <option value="chill">Chill</option>
+                  <option value="active">Active</option>
+                  <option value="help">Help</option>
+                </select>
+                <input value={editActivityLimit} onChange={(event) => setEditActivityLimit(event.target.value)} placeholder="Limit optional" className="field" />
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <input value={editActivityLat} onChange={(event) => setEditActivityLat(event.target.value)} placeholder="Lat" className="field" />
+                <input value={editActivityLng} onChange={(event) => setEditActivityLng(event.target.value)} placeholder="Lng" className="field" />
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button type="button" className="action-primary" onClick={() => void saveActivityEdits()}>
+                  Save
+                </button>
+                <button type="button" className="action-ghost" onClick={cancelEditActivity}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {toast ? (
         <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2">

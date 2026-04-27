@@ -28,6 +28,12 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/activities/[id
     return Response.json({ ...existing, joined: false });
   }
 
+  const [activity] = await db.select().from(activities).where(eq(activities.id, id));
+  if (!activity) return Response.json({ error: "Not found" }, { status: 404 });
+  if (activity.creatorId === currentUser.id) {
+    return Response.json({ error: "Creator cannot leave their own activity" }, { status: 409 });
+  }
+
   await db.delete(activityParticipants).where(eq(activityParticipants.id, membership.id));
 
   const [updated] = await db
