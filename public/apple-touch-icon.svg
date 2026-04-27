@@ -1,12 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180" fill="none">
   <defs>
-    <linearGradient id="g3" x1="0" y1="0" x2="180" y2="180" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0EA5E9"/>
-      <stop offset="1" stop-color="#14B8A6"/>
+    <linearGradient id="billixa-grad" x1="0" y1="0" x2="180" y2="180" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF6B35"/>
+      <stop offset="0.5" stop-color="#F7C94B"/>
+      <stop offset="1" stop-color="#4ECDC4"/>
     </linearGradient>
   </defs>
-  <rect width="180" height="180" rx="42" fill="#020617"/>
-  <circle cx="90" cy="90" r="62" fill="url(#g3)" opacity="0.25"/>
-  <path d="M90 40C72.3 40 58 54.3 58 72C58 97.6 90 146 90 146C90 146 122 97.6 122 72C122 54.3 107.7 40 90 40ZM90 87C82.3 87 76 80.7 76 73C76 65.3 82.3 59 90 59C97.7 59 104 65.3 104 73C104 80.7 97.7 87 90 87Z" fill="#F8FAFC"/>
-  <circle cx="90" cy="73" r="7.5" fill="#0EA5E9"/>
+  <rect width="180" height="180" rx="42" fill="#071120"/>
+  <path d="M55 42H98C116 42 130 54 130 70C130 84 119 93 103 98C126 103 145 121 145 145C145 166 126 180 100 180H55V42Z" fill="url(#billixa-grad)" opacity="0.9"/>
+  <path d="M70 56V74H96C108 74 118 67 118 56C118 45 108 38 96 38H70V56ZM70 94V112H103C116 112 126 103 126 90C126 77 116 68 103 68H70V94Z" fill="#071120"/>
+  <path d="M122 42H140L158 42V56H144L158 70V84H140L122 84V70H136L122 56V42Z" fill="url(#billixa-grad)" opacity="0.7"/>
+  <circle cx="90" cy="90" r="5" fill="#F7C94B"/>
 </svg>

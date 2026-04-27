@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Hangout Map",
-    short_name: "Hangout",
+    name: "BilliXa",
+    short_name: "BilliXa",
     description: "Post, discover, and join nearby tasks and meetups on a live map.",
     start_url: "/",
     display: "standalone",

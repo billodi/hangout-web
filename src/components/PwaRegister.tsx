@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 
-const SW_URL = "/sw.js?v=3";
-const ACTIVE_CACHE = "hangout-shell-v3";
+const SW_URL = "/sw.js?v=4";
+const ACTIVE_CACHE = "billixa-shell-v4";
 
 export default function PwaRegister() {
   useEffect(() => {
@@ -29,7 +29,7 @@ export default function PwaRegister() {
 
         if ("caches" in window) {
           const keys = await caches.keys();
-          await Promise.all(keys.filter((k) => k.startsWith("hangout-shell-") && k !== ACTIVE_CACHE).map((k) => caches.delete(k)));
+          await Promise.all(keys.filter((k) => k.startsWith("billixa-shell-") && k !== ACTIVE_CACHE).map((k) => caches.delete(k)));
         }
       } catch {
         // No-op: app works without background caching.

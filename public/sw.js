@@ -1,4 +1,4 @@
-const CACHE_NAME = "hangout-shell-v3";
+const CACHE_NAME = "billixa-shell-v4";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icon-192.svg", "/icon-512.svg", "/apple-touch-icon.svg"];
 const APP_SHELL_PATHS = new Set(APP_SHELL);
 

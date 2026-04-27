@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 import { cookies } from "next/headers";
 import { randomBytes } from "node:crypto";
 
-const STATE_COOKIE = "hangout_google_oauth_state";
+const STATE_COOKIE = "billixa_google_oauth_state";
 
 function getGoogleConfig() {
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;

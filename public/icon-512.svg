@@ -1,12 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
   <defs>
-    <linearGradient id="g2" x1="32" y1="24" x2="480" y2="488" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0EA5E9"/>
-      <stop offset="1" stop-color="#14B8A6"/>
+    <linearGradient id="billixa-grad" x1="32" y1="24" x2="480" y2="488" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF6B35"/>
+      <stop offset="0.5" stop-color="#F7C94B"/>
+      <stop offset="1" stop-color="#4ECDC4"/>
+    </linearGradient>
+    <linearGradient id="bg-grad" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#071120"/>
+      <stop offset="1" stop-color="#10243F"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="118" fill="#020617"/>
-  <circle cx="256" cy="256" r="186" fill="url(#g2)" opacity="0.24"/>
-  <path d="M256 109C204.6 109 163 150.6 163 202C163 276 256 417 256 417C256 417 349 276 349 202C349 150.6 307.4 109 256 109ZM256 246C232.8 246 214 227.2 214 204C214 180.8 232.8 162 256 162C279.2 162 298 180.8 298 204C298 227.2 279.2 246 256 246Z" fill="#F8FAFC"/>
-  <circle cx="256" cy="204" r="23" fill="#0EA5E9"/>
+  <rect width="512" height="512" rx="118" fill="url(#bg-grad)"/>
+  <!-- B letter stylized -->
+  <path d="M160 120H280C330 120 370 155 370 205C370 245 340 275 300 285C350 295 380 330 380 380C380 435 330 470 270 470H160V120Z" fill="url(#billixa-grad)" opacity="0.9"/>
+  <path d="M200 160V220H270C300 220 320 205 320 180C320 155 300 140 270 140H200V160ZM200 260V320H280C315 320 340 300 340 270C340 240 315 220 280 220H200V260Z" fill="#071120"/>
+  <!-- X letter stylized -->
+  <path d="M340 120L400 120L460 120L460 160L420 160L460 200L460 240L400 240L340 240L340 200L380 160L340 160L340 120Z" fill="url(#billixa-grad)" opacity="0.7"/>
+  <path d="M340 280L400 280L460 280L460 320L420 320L460 360L460 400L400 400L340 400L340 360L380 320L340 320L340 280Z" fill="url(#billixa-grad)" opacity="0.5"/>
+  <!-- Connection dots -->
+  <circle cx="256" cy="256" r="12" fill="#F7C94B"/>
+  <circle cx="200" cy="390" r="8" fill="#4ECDC4" opacity="0.8"/>
+  <circle cx="380" cy="130" r="8" fill="#FF6B35" opacity="0.8"/>
 </svg>

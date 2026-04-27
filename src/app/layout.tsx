@@ -16,14 +16,14 @@ const sora = Sora({
 });
 
 export const metadata: Metadata = {
-  title: "Hangout Control Room",
+  title: "BilliXa",
   description: "A bold social map to publish local plans, join squads, and grow community reputation.",
   manifest: "/manifest.webmanifest",
-  applicationName: "Hangout Map",
+  applicationName: "BilliXa",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Hangout Map",
+    title: "BilliXa",
   },
   icons: {
     icon: "/icon-512.svg",

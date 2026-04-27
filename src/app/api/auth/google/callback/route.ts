@@ -8,7 +8,7 @@ import { users } from "@/db/schema";
 import { createSession, hashPassword, setSessionCookie } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 
-const STATE_COOKIE = "hangout_google_oauth_state";
+const STATE_COOKIE = "billixa_google_oauth_state";
 
 type GoogleTokenResponse = {
   access_token?: string;

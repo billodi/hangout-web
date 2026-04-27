@@ -1,12 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" fill="none">
   <defs>
-    <linearGradient id="g1" x1="0" y1="0" x2="192" y2="192" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0EA5E9"/>
-      <stop offset="1" stop-color="#14B8A6"/>
+    <linearGradient id="billixa-grad" x1="0" y1="0" x2="192" y2="192" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF6B35"/>
+      <stop offset="0.5" stop-color="#F7C94B"/>
+      <stop offset="1" stop-color="#4ECDC4"/>
     </linearGradient>
   </defs>
-  <rect width="192" height="192" rx="44" fill="#0F172A"/>
-  <circle cx="96" cy="96" r="66" fill="url(#g1)" opacity="0.24"/>
-  <path d="M96 41C77.8 41 63 55.8 63 74C63 100.2 96 150 96 150C96 150 129 100.2 129 74C129 55.8 114.2 41 96 41ZM96 89C87.7 89 81 82.3 81 74C81 65.7 87.7 59 96 59C104.3 59 111 65.7 111 74C111 82.3 104.3 89 96 89Z" fill="#F8FAFC"/>
-  <circle cx="96" cy="74" r="8" fill="#0EA5E9"/>
+  <rect width="192" height="192" rx="44" fill="#071120"/>
+  <path d="M60 45H105C124 45 139 58 139 75C139 90 127 100 110 105C135 110 155 130 155 155C155 178 135 192 108 192H60V45Z" fill="url(#billixa-grad)" opacity="0.9"/>
+  <path d="M75 60V80H102C115 80 125 72 125 60C125 48 115 40 102 40H75V60ZM75 100V120H110C125 120 135 110 135 95C135 80 125 70 110 70H75V100Z" fill="#071120"/>
+  <path d="M130 45H150L170 45V60H155L170 75V90H150L130 90V75H145L130 60V45Z" fill="url(#billixa-grad)" opacity="0.7"/>
+  <circle cx="96" cy="96" r="5" fill="#F7C94B"/>
 </svg>

@@ -1,4 +1,4 @@
-const SESSION_COOKIE_BASE = "hangout_session";
+const SESSION_COOKIE_BASE = "billixa_session";
 
 function cleanDeployTag(value: string): string {
   const cleaned = value.toLowerCase().replace(/[^a-z0-9]/g, "");
