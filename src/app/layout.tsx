@@ -1,17 +1,23 @@
 import type { Metadata, Viewport } from "next";
-import { Roboto } from "next/font/google";
+import { Sora, Space_Grotesk } from "next/font/google";
 import PwaRegister from "@/components/PwaRegister";
 import "./globals.css";
 
-const roboto = Roboto({
+const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "700", "900"],
-  variable: "--font-roboto",
+  weight: ["400", "500", "700"],
+  variable: "--font-space-grotesk",
+});
+
+const sora = Sora({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-sora",
 });
 
 export const metadata: Metadata = {
-  title: "Hangout Map",
-  description: "Post, discover, and join nearby tasks and meetups on a live map.",
+  title: "Hangout Control Room",
+  description: "A bold social map to publish local plans, join squads, and grow community reputation.",
   manifest: "/manifest.webmanifest",
   applicationName: "Hangout Map",
   appleWebApp: {
@@ -30,8 +36,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
-    { media: "(prefers-color-scheme: dark)", color: "#020617" },
+    { media: "(prefers-color-scheme: light)", color: "#10243f" },
+    { media: "(prefers-color-scheme: dark)", color: "#071120" },
   ],
 };
 
@@ -41,7 +47,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${roboto.variable} h-full antialiased`}>
+    <html lang="en" className={`${spaceGrotesk.variable} ${sora.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <PwaRegister />
         {children}

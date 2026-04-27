@@ -92,6 +92,14 @@ type ProfileDetail = {
     lng: number | null;
     createdAt: string;
   }>;
+  recentActivities: Array<{
+    id: string;
+    title: string;
+    location: string;
+    whenISO: string;
+    lat: number | null;
+    lng: number | null;
+  }>;
   reviewContext: {
     canSubmitProfileReview: boolean;
     hasProfileReview: boolean;
@@ -110,11 +118,6 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
 
-type LeafletModule = typeof import("leaflet");
-type LeafletMap = import("leaflet").Map;
-type LeafletCircleMarker = import("leaflet").CircleMarker;
-type LeafletLayerGroup = import("leaflet").LayerGroup;
-
 type NominatimResult = {
   place_id: number;
   display_name: string;
@@ -122,18 +125,17 @@ type NominatimResult = {
   lon: string;
 };
 
-const THEME_KEY = "hangout.theme";
+type LeafletModule = typeof import("leaflet");
+type LeafletMap = import("leaflet").Map;
+type LeafletCircleMarker = import("leaflet").CircleMarker;
+type LeafletLayerGroup = import("leaflet").LayerGroup;
 
-const TYPE_META: Record<ActivityType, { label: string; chip: string }> = {
-  chill: { label: "Chill", chip: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200" },
-  active: { label: "Active", chip: "bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200" },
-  help: { label: "Help", chip: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200" },
-};
+type ToastTone = "info" | "error";
 
-const TYPE_VISUAL: Record<ActivityType, string> = {
-  chill: "/scenes/rooftop-night.svg",
-  active: "/scenes/city-walk.svg",
-  help: "/scenes/help-circle.svg",
+const TYPE_META: Record<ActivityType, { label: string; accent: string; scene: string }> = {
+  chill: { label: "Chill", accent: "var(--type-chill)", scene: "/scenes/rooftop-night.svg" },
+  active: { label: "Active", accent: "var(--type-active)", scene: "/scenes/city-walk.svg" },
+  help: { label: "Help", accent: "var(--type-help)", scene: "/scenes/help-circle.svg" },
 };
 
 let leafletLoader: Promise<LeafletModule> | null = null;
@@ -142,12 +144,24 @@ function safeText(value: unknown): string {
   return String(value ?? "").trim();
 }
 
+function clampInt(value: string, min: number, max: number): number | null {
+  const n = Number.parseInt(value, 10);
+  if (!Number.isFinite(n)) return null;
+  return Math.min(max, Math.max(min, n));
+}
+
 function formatWhen(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "Unknown";
-  const date = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
-  const time = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "UTC" });
-  return `${date} ${time} UTC`;
+  return d.toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "UTC",
+  });
 }
 
 function toDateInput(date: Date): string {
@@ -163,10 +177,10 @@ function toTimeInput(date: Date): string {
   return `${h}:${m}`;
 }
 
-function clampInt(value: string, min: number, max: number): number | null {
-  const n = Number.parseInt(value, 10);
-  if (!Number.isFinite(n)) return null;
-  return Math.min(max, Math.max(min, n));
+function isClosedByWhen(whenISO: string, nowTick: number): boolean {
+  if (nowTick <= 0) return false;
+  const ts = new Date(whenISO).getTime();
+  return Number.isFinite(ts) && ts <= nowTick;
 }
 
 function isValidImageUrl(url: string): boolean {
@@ -176,18 +190,6 @@ function isValidImageUrl(url: string): boolean {
   } catch {
     return false;
   }
-}
-
-function getTheme(): "light" | "dark" | "system" {
-  const v = localStorage.getItem(THEME_KEY);
-  if (v === "light" || v === "dark") return v;
-  return "system";
-}
-
-function applyTheme() {
-  const mode = getTheme();
-  const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
-  document.documentElement.classList.toggle("dark", mode === "dark" || (mode === "system" && prefersDark));
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -201,6 +203,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     credentials: "include",
     cache: options?.cache ?? "no-store",
   });
+
   const text = await response.text();
   let data: unknown = null;
   try {
@@ -208,10 +211,12 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   } catch {
     data = text;
   }
+
   if (!response.ok) {
     const msg = (data as { error?: string } | null)?.error;
     throw new Error(msg || `Request failed (${response.status})`);
   }
+
   return data as T;
 }
 
@@ -222,14 +227,30 @@ function loadLeaflet(): Promise<LeafletModule> {
   return leafletLoader;
 }
 
+function isMobileViewport(): boolean {
+  return window.matchMedia("(max-width: 1023px)").matches;
+}
+
 function Avatar({ name, avatarUrl, size = "md" }: { name: string; avatarUrl?: string | null; size?: "sm" | "md" }) {
+  const px = size === "sm" ? 32 : 40;
   const dim = size === "sm" ? "h-8 w-8" : "h-10 w-10";
+
   if (avatarUrl) {
-    return <img src={avatarUrl} alt={name} className={`${dim} rounded-full object-cover border border-slate-300/70 dark:border-slate-700/70`} />;
+    return (
+      <Image
+        src={avatarUrl}
+        alt={name}
+        width={px}
+        height={px}
+        unoptimized
+        className={`${dim} rounded-full object-cover border border-white/35`}
+      />
+    );
   }
+
   const initial = name.trim().charAt(0).toUpperCase() || "?";
   return (
-    <div className={`${dim} rounded-full border border-slate-300/70 dark:border-slate-700/70 bg-slate-100 dark:bg-slate-800 text-xs font-semibold flex items-center justify-center`}>
+    <div className={`${dim} rounded-full border border-white/35 bg-white/10 grid place-items-center text-xs font-bold`}>
       {initial}
     </div>
   );
@@ -249,11 +270,9 @@ export default function HangoutApp({
   const [user, setUser] = useState<User | null>(initialUser);
   const userId = user?.id ?? null;
 
-  const [tab, setTab] = useState<"map" | "profiles">("map");
-  const [mobileMapPane, setMobileMapPane] = useState<"create" | "feed" | "details">("feed");
-  const [mobileProfilesPane, setMobileProfilesPane] = useState<"list" | "detail">("list");
-  const [nowTick, setNowTick] = useState(0);
-  const [toast, setToast] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<"map" | "profiles">("map");
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const [toast, setToast] = useState<{ tone: ToastTone; message: string } | null>(null);
   const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
 
   const [search, setSearch] = useState("");
@@ -281,7 +300,7 @@ export default function HangoutApp({
   const [authPassword, setAuthPassword] = useState("");
 
   const [profiles, setProfiles] = useState<ProfileSummary[]>([]);
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(initialUser?.id ?? null);
   const [profileDetail, setProfileDetail] = useState<ProfileDetail | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
 
@@ -302,8 +321,6 @@ export default function HangoutApp({
 
   const mapElRef = useRef<HTMLDivElement | null>(null);
   const pickerMapElRef = useRef<HTMLDivElement | null>(null);
-  const mapSectionRef = useRef<HTMLDivElement | null>(null);
-  const profilesSectionRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const pickerMapRef = useRef<LeafletMap | null>(null);
   const pickerMarkerRef = useRef<LeafletCircleMarker | null>(null);
@@ -314,62 +331,48 @@ export default function HangoutApp({
     () => activities.find((a) => a.id === selectedActivityId) ?? null,
     [activities, selectedActivityId],
   );
-  const closedCount = useMemo(
-    () => activities.filter((a) => isClosedByWhen(a.whenISO)).length,
-    [activities, nowTick],
-  );
+
+  const filteredActivities = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const list = activities.filter((activity) => {
+      const haystack = `${activity.title} ${activity.description ?? ""} ${activity.location} ${activity.creatorName}`.toLowerCase();
+      if (query && !haystack.includes(query)) return false;
+      if (filterType !== "all" && activity.type !== filterType) return false;
+      if (onlyOpen && activity.limit !== null && activity.going >= activity.limit) return false;
+      if (onlyOpen && isClosedByWhen(activity.whenISO, nowTick)) return false;
+      return true;
+    });
+
+    list.sort((a, b) => {
+      if (sortBy === "newest") {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      return new Date(a.whenISO).getTime() - new Date(b.whenISO).getTime();
+    });
+
+    return list;
+  }, [activities, search, filterType, sortBy, onlyOpen, nowTick]);
+
   const availableActivityReviewOptions = useMemo(() => {
     if (!profileDetail?.reviewContext) return [];
     const reviewed = new Set(profileDetail.reviewContext.reviewedActivityIds);
     return profileDetail.reviewContext.eligibleActivities.filter((activity) => !reviewed.has(activity.id));
   }, [profileDetail]);
 
-  const filteredActivities = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const copy = activities.filter((a) => {
-      const hay = `${a.title} ${a.description ?? ""} ${a.location} ${a.creatorName} ${a.type}`.toLowerCase();
-      if (q && !hay.includes(q)) return false;
-      if (filterType !== "all" && a.type !== filterType) return false;
-      if (onlyOpen && a.limit !== null && a.going >= a.limit) return false;
-      if (onlyOpen && nowTick > 0 && new Date(a.whenISO).getTime() <= nowTick) return false;
-      return true;
-    });
-    copy.sort((a, b) => {
-      if (sortBy === "newest") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      return new Date(a.whenISO).getTime() - new Date(b.whenISO).getTime();
-    });
-    return copy;
-  }, [activities, search, filterType, onlyOpen, sortBy, nowTick]);
+  const upcomingCount = useMemo(
+    () => activities.filter((activity) => !isClosedByWhen(activity.whenISO, nowTick)).length,
+    [activities, nowTick],
+  );
 
-  function isClosedByWhen(whenISO: string): boolean {
-    if (nowTick <= 0) return false;
-    const ts = new Date(whenISO).getTime();
-    return Number.isFinite(ts) && ts <= nowTick;
-  }
+  const openSeatCount = useMemo(
+    () => activities.filter((activity) => activity.limit === null || activity.going < activity.limit).length,
+    [activities],
+  );
+
+  const selectedTypeMeta = selectedActivity ? TYPE_META[selectedActivity.type] : null;
 
   useEffect(() => {
-    if (!profileDetail?.reviewContext) {
-      setReviewMode("profile");
-      setReviewActivityId("");
-      return;
-    }
-    if (availableActivityReviewOptions.length > 0) {
-      setReviewActivityId((prev) => (prev && availableActivityReviewOptions.some((a) => a.id === prev) ? prev : availableActivityReviewOptions[0].id));
-    } else {
-      setReviewActivityId("");
-    }
-    if (!profileDetail.reviewContext.canSubmitProfileReview && availableActivityReviewOptions.length > 0) {
-      setReviewMode("activity");
-    }
-  }, [profileDetail, availableActivityReviewOptions]);
-
-  useEffect(() => {
-    applyTheme();
-  }, []);
-
-  useEffect(() => {
-    setNowTick(Date.now());
-    const timer = window.setInterval(() => setNowTick(Date.now()), 30000);
+    const timer = window.setInterval(() => setNowTick(Date.now()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -378,13 +381,9 @@ export default function HangoutApp({
       try {
         const me = await apiFetch<{ user: User | null }>("/api/auth/me", { cache: "no-store" });
         if (!me.user) return;
-        const meUser = me.user;
-        setUser((prev) => prev ?? meUser);
-        setEditName((prev) => (prev ? prev : meUser.displayName));
-        setEditBio((prev) => (prev ? prev : meUser.bio ?? ""));
-        setEditAvatarUrl((prev) => (prev ? prev : meUser.avatarUrl ?? ""));
+        setUser((prev) => prev ?? me.user);
       } catch {
-        // Keep existing local auth state on transient failure.
+        // Keep initial state on transient failures.
       }
     })();
   }, []);
@@ -394,29 +393,19 @@ export default function HangoutApp({
     const authError = params.get("auth_error");
     const authSuccess = params.get("auth_success");
     if (!authError && !authSuccess) return;
+
     if (authSuccess === "google") {
-      setToast("Google login successful.");
+      window.setTimeout(() => setToast({ tone: "info", message: "Google login successful." }), 0);
     } else if (authError) {
-      setToast(`Google login failed: ${authError.replaceAll("_", " ")}`);
+      window.setTimeout(() => setToast({ tone: "error", message: `Google login failed: ${authError.replaceAll("_", " ")}` }), 0);
     }
+
     params.delete("auth_error");
     params.delete("auth_success");
     const query = params.toString();
     const nextUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
     window.history.replaceState({}, "", nextUrl);
   }, []);
-
-  useEffect(() => {
-    if (tab !== "map") return;
-    const map = mapRef.current;
-    if (!map) return;
-    window.setTimeout(() => {
-      map.invalidateSize();
-      if (selectedActivity && typeof selectedActivity.lat === "number" && typeof selectedActivity.lng === "number") {
-        map.panTo([selectedActivity.lat, selectedActivity.lng]);
-      }
-    }, 120);
-  }, [tab, selectedActivity]);
 
   useEffect(() => {
     if (!toast) return;
@@ -431,24 +420,51 @@ export default function HangoutApp({
       try {
         const rows = await apiFetch<ProfileSummary[]>("/api/profiles");
         setProfiles(rows);
-        if (!selectedProfileId && rows[0]) {
-          const preferred = user ? rows.find((r) => r.id === user.id) ?? rows[0] : rows[0];
-          setSelectedProfileId(preferred.id);
-        }
+        setSelectedProfileId((prev) => {
+          if (prev || !rows[0]) return prev;
+          const preferred = userId ? rows.find((row) => row.id === userId) ?? rows[0] : rows[0];
+          return preferred.id;
+        });
       } catch (error) {
-        setToast(error instanceof Error ? error.message : "Could not load profiles");
+        setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not load profiles" });
       }
     })();
-  }, [selectedProfileId, user]);
+  }, [userId]);
 
   useEffect(() => {
-    const target = selectedProfileId ?? user?.id ?? null;
+    const target = selectedProfileId ?? userId ?? null;
     if (!target) return;
-    void loadProfile(target).catch(() => {});
-  }, [selectedProfileId, user?.id]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        setLoadingProfile(true);
+        const detail = await apiFetch<ProfileDetail>(`/api/profiles/${target}`);
+        if (cancelled) return;
+        setProfileDetail(detail);
+        syncReviewState(detail);
+
+        if (userId && detail.profile.id === userId) {
+          setEditName(detail.profile.displayName);
+          setEditBio(detail.profile.bio ?? "");
+          setEditAvatarUrl(detail.profile.avatarUrl ?? "");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not load profile" });
+        }
+      } finally {
+        if (!cancelled) setLoadingProfile(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProfileId, userId]);
 
   useEffect(() => {
     let cancelled = false;
+
     void (async () => {
       const L = await loadLeaflet();
       if (cancelled) return;
@@ -476,18 +492,18 @@ export default function HangoutApp({
           attribution: "&copy; OpenStreetMap contributors",
         }).addTo(pickerMap);
 
-        pickerMap.on("click", (e) => {
-          const latNum = e.latlng.lat;
-          const lngNum = e.latlng.lng;
+        pickerMap.on("click", (event) => {
+          const latNum = event.latlng.lat;
+          const lngNum = event.latlng.lng;
           setPinLat(latNum.toFixed(6));
           setPinLng(lngNum.toFixed(6));
-          if (pickerMarkerRef.current) {
-            pickerMarkerRef.current.remove();
-          }
+
+          if (pickerMarkerRef.current) pickerMarkerRef.current.remove();
+
           pickerMarkerRef.current = L.circleMarker([latNum, lngNum], {
             radius: 8,
-            color: "#0f766e",
-            fillColor: "#14b8a6",
+            color: "#0f172a",
+            fillColor: "#f97316",
             fillOpacity: 0.95,
             weight: 2,
           }).addTo(pickerMap);
@@ -496,6 +512,7 @@ export default function HangoutApp({
         pickerMapRef.current = pickerMap;
       }
     })();
+
     return () => {
       cancelled = true;
     };
@@ -505,28 +522,30 @@ export default function HangoutApp({
     const map = mapRef.current;
     const layer = markersLayerRef.current;
     if (!map || !layer) return;
+
     void (async () => {
       const L = await loadLeaflet();
       layer.clearLayers();
+
       const boundsPoints: Array<[number, number]> = [];
-      for (const item of filteredActivities) {
-        if (typeof item.lat !== "number" || typeof item.lng !== "number") continue;
-        const marker = L.circleMarker([item.lat, item.lng], {
-          radius: 7,
-          color: selectedActivityId === item.id ? "#0f172a" : "#0f766e",
-          fillColor: selectedActivityId === item.id ? "#1e293b" : "#14b8a6",
+      for (const activity of filteredActivities) {
+        if (typeof activity.lat !== "number" || typeof activity.lng !== "number") continue;
+        const marker = L.circleMarker([activity.lat, activity.lng], {
+          radius: selectedActivityId === activity.id ? 9 : 7,
+          color: "#0f172a",
+          fillColor: selectedActivityId === activity.id ? "#f97316" : "#38bdf8",
           fillOpacity: 0.95,
           weight: 2,
         });
-        marker.on("click", () => setSelectedActivityId(item.id));
-        marker.bindTooltip(item.title, { direction: "top" });
+        marker.on("click", () => setSelectedActivityId(activity.id));
+        marker.bindTooltip(activity.title, { direction: "top" });
         marker.addTo(layer);
-        boundsPoints.push([item.lat, item.lng]);
+        boundsPoints.push([activity.lat, activity.lng]);
       }
 
       if (boundsPoints.length > 0) {
         const bounds = L.latLngBounds(boundsPoints);
-        map.fitBounds(bounds, { padding: [20, 20] });
+        map.fitBounds(bounds, { padding: [18, 18] });
         if (map.getZoom() > 14) map.setZoom(14);
       }
     })();
@@ -539,38 +558,14 @@ export default function HangoutApp({
   }, [selectedActivity]);
 
   useEffect(() => {
-    const onBeforeInstallPrompt = (event: Event) => {
-      event.preventDefault();
-      setInstallPromptEvent(event as BeforeInstallPromptEvent);
-    };
-    const onInstalled = () => setInstallPromptEvent(null);
-    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
-    window.addEventListener("appinstalled", onInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
-      window.removeEventListener("appinstalled", onInstalled);
-    };
-  }, []);
-
-  useEffect(() => {
     const pullLatest = () => {
-      void (async () => {
-        try {
-          const me = await apiFetch<{ user: User | null }>("/api/auth/me", { cache: "no-store" });
-          if (!me.user) return;
-          setUser((prev) => prev ?? me.user);
-        } catch {
-          // Keep current auth state if check fails.
-        }
-      })();
-
       void (async () => {
         try {
           const rows = await apiFetch<Activity[]>("/api/activities");
           setActivities(rows);
           setSelectedActivityId((prev) => prev ?? rows[0]?.id ?? null);
         } catch {
-          // Silent background refresh.
+          // Ignore silent polling failures.
         }
       })();
 
@@ -578,443 +573,102 @@ export default function HangoutApp({
         try {
           const rows = await apiFetch<ProfileSummary[]>("/api/profiles");
           setProfiles(rows);
-          setSelectedProfileId((prev) => {
-            if (prev) return prev;
-            if (!rows[0]) return null;
-            return userId ? rows.find((r) => r.id === userId)?.id ?? rows[0].id : rows[0].id;
-          });
         } catch {
-          // Silent background refresh.
-        }
-      })();
-
-      const target = selectedProfileId ?? userId;
-      if (!target) return;
-      void (async () => {
-        try {
-          const detail = await apiFetch<ProfileDetail>(`/api/profiles/${target}`);
-          setProfileDetail(detail);
-        } catch {
-          // Silent background refresh.
+          // Ignore silent polling failures.
         }
       })();
     };
 
-    const intervalId = window.setInterval(() => {
-      if (document.visibilityState !== "visible") return;
-      pullLatest();
-    }, 10000);
-
-    const onFocusOrVisible = () => {
-      if (document.visibilityState !== "visible") return;
-      pullLatest();
-    };
-
-    window.addEventListener("focus", onFocusOrVisible);
-    document.addEventListener("visibilitychange", onFocusOrVisible);
+    const timer = window.setInterval(pullLatest, 45_000);
+    window.addEventListener("focus", pullLatest);
 
     return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", onFocusOrVisible);
-      document.removeEventListener("visibilitychange", onFocusOrVisible);
+      window.clearInterval(timer);
+      window.removeEventListener("focus", pullLatest);
     };
-  }, [selectedProfileId, userId]);
+  }, []);
 
-  async function refreshActivities(options?: { silent?: boolean }) {
+  useEffect(() => {
+    const onBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPromptEvent(event as BeforeInstallPromptEvent);
+    };
+
+    const onInstalled = () => setInstallPromptEvent(null);
+
+    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+
+  async function refreshActivities() {
     try {
       const rows = await apiFetch<Activity[]>("/api/activities");
       setActivities(rows);
-      if (!selectedActivityId && rows.length > 0) setSelectedActivityId(rows[0].id);
+      setSelectedActivityId((prev) => prev ?? rows[0]?.id ?? null);
     } catch (error) {
-      if (!options?.silent) {
-        setToast(error instanceof Error ? error.message : "Could not refresh activities");
-      }
-      throw error;
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not refresh activities" });
     }
   }
 
-  async function refreshProfiles(options?: { silent?: boolean }) {
+  async function refreshProfiles() {
     try {
       const rows = await apiFetch<ProfileSummary[]>("/api/profiles");
       setProfiles(rows);
-      if (!selectedProfileId && rows[0]) {
-        const preferred = user ? rows.find((r) => r.id === user.id) ?? rows[0] : rows[0];
-        setSelectedProfileId(preferred.id);
-      }
+      setSelectedProfileId((prev) => {
+        if (prev || !rows[0]) return prev;
+        const preferred = userId ? rows.find((row) => row.id === userId) ?? rows[0] : rows[0];
+        return preferred.id;
+      });
     } catch (error) {
-      if (!options?.silent) {
-        setToast(error instanceof Error ? error.message : "Could not load profiles");
-      }
-      throw error;
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not load profiles" });
     }
   }
 
-  async function loadProfile(id: string, options?: { silent?: boolean }) {
+  function syncReviewState(detail: ProfileDetail) {
+    if (!detail.reviewContext) {
+      setReviewMode("profile");
+      setReviewActivityId("");
+      return;
+    }
+
+    const reviewed = new Set(detail.reviewContext.reviewedActivityIds);
+    const options = detail.reviewContext.eligibleActivities.filter((activity) => !reviewed.has(activity.id));
+
+    if (options.length > 0) {
+      setReviewActivityId((prev) => (prev && options.some((activity) => activity.id === prev) ? prev : options[0].id));
+    } else {
+      setReviewActivityId("");
+    }
+
+    if (!detail.reviewContext.canSubmitProfileReview && options.length > 0) {
+      setReviewMode("activity");
+    } else {
+      setReviewMode((prev) => (prev === "activity" && options.length === 0 ? "profile" : prev));
+    }
+  }
+
+  async function loadProfile(profileId: string) {
+    setLoadingProfile(true);
     try {
-      setLoadingProfile(true);
-      const detail = await apiFetch<ProfileDetail>(`/api/profiles/${id}`);
+      const detail = await apiFetch<ProfileDetail>(`/api/profiles/${profileId}`);
       setProfileDetail(detail);
-    } catch (error) {
-      if (!options?.silent) {
-        setToast(error instanceof Error ? error.message : "Could not load profile");
+      syncReviewState(detail);
+
+      if (userId && detail.profile.id === userId) {
+        setEditName(detail.profile.displayName);
+        setEditBio(detail.profile.bio ?? "");
+        setEditAvatarUrl(detail.profile.avatarUrl ?? "");
       }
-      throw error;
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not load profile" });
     } finally {
       setLoadingProfile(false);
     }
-  }
-
-  function resetCreateForm() {
-    const now = new Date();
-    setTitle("");
-    setDescription("");
-    setLocation("");
-    setDate(toDateInput(now));
-    setTime(toTimeInput(now));
-    setType("chill");
-    setLimit("");
-    setPinLat("");
-    setPinLng("");
-    setPinSearchQuery("");
-    setPinSearchResults([]);
-    if (pickerMarkerRef.current) {
-      pickerMarkerRef.current.remove();
-      pickerMarkerRef.current = null;
-    }
-  }
-
-  async function handleAuthSubmit() {
-    const email = safeText(authEmail).toLowerCase();
-    const password = safeText(authPassword);
-    const displayName = safeText(authName);
-    if (!email || !password || (authMode === "signup" && !displayName)) {
-      setToast("Fill in the required auth fields.");
-      return;
-    }
-    try {
-      const endpoint = authMode === "signup" ? "/api/auth/signup" : "/api/auth/login";
-      const body = authMode === "signup" ? { email, password, displayName } : { email, password };
-      const result = await apiFetch<{ user: User }>(endpoint, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      setUser(result.user);
-      setEditName(result.user.displayName);
-      setEditBio(result.user.bio ?? "");
-      setEditAvatarUrl(result.user.avatarUrl ?? "");
-      setAuthEmail("");
-      setAuthPassword("");
-      setAuthName("");
-      setToast(authMode === "signup" ? "Account created." : "Logged in.");
-      await refreshActivities();
-      await refreshProfiles();
-    } catch (error) {
-      setToast(error instanceof Error ? error.message : "Auth failed");
-    }
-  }
-
-  function startGoogleLogin() {
-    window.location.href = "/api/auth/google/start";
-  }
-
-  async function searchLocationPin() {
-    const query = safeText(pinSearchQuery);
-    if (!query) {
-      setToast("Enter a location to search.");
-      return;
-    }
-    try {
-      setPinSearchLoading(true);
-      const params = new URLSearchParams({
-        format: "jsonv2",
-        q: query,
-        limit: "6",
-      });
-      const rows = await apiFetch<NominatimResult[]>(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
-        headers: {
-          Accept: "application/json",
-        },
-      });
-      setPinSearchResults(rows);
-      if (rows.length === 0) setToast("No locations found.");
-    } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not search location");
-    } finally {
-      setPinSearchLoading(false);
-    }
-  }
-
-  async function applyPinResult(item: NominatimResult) {
-    const L = await loadLeaflet();
-    const latNum = Number.parseFloat(item.lat);
-    const lngNum = Number.parseFloat(item.lon);
-    if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
-      setToast("Invalid coordinates returned.");
-      return;
-    }
-    setLocation(item.display_name.slice(0, 60));
-    setPinLat(latNum.toFixed(6));
-    setPinLng(lngNum.toFixed(6));
-    setPinSearchResults([]);
-    setPinSearchQuery(item.display_name);
-    const pickerMap = pickerMapRef.current;
-    if (pickerMap) {
-      pickerMap.setView([latNum, lngNum], 13);
-      if (pickerMarkerRef.current) pickerMarkerRef.current.remove();
-      pickerMarkerRef.current = L.circleMarker([latNum, lngNum], {
-        radius: 8,
-        color: "#0f766e",
-        fillColor: "#14b8a6",
-        fillOpacity: 0.95,
-        weight: 2,
-      }).addTo(pickerMap);
-    }
-  }
-
-  async function logout() {
-    try {
-      await apiFetch("/api/auth/logout", { method: "POST" });
-      setUser(null);
-      setEditName("");
-      setEditBio("");
-      setEditAvatarUrl("");
-      setToast("Logged out.");
-      await refreshActivities();
-      await refreshProfiles();
-    } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not logout");
-    }
-  }
-
-  async function createActivity() {
-    if (!backendOk) {
-      setToast("Backend not reachable.");
-      return;
-    }
-    if (!user) {
-      setToast("Login is required to post.");
-      return;
-    }
-    const t = safeText(title);
-    const d = safeText(description);
-    const l = safeText(location);
-    const lat = Number.parseFloat(pinLat);
-    const lng = Number.parseFloat(pinLng);
-    if (!t || !l || !date || !time || !Number.isFinite(lat) || !Number.isFinite(lng)) {
-      setToast("Fill title, location, date/time and pick a map pin.");
-      return;
-    }
-    const when = new Date(`${date}T${time}:00`);
-    if (Number.isNaN(when.getTime())) {
-      setToast("Invalid date/time.");
-      return;
-    }
-    const limitNum = limit.trim() ? clampInt(limit.trim(), 2, 200) : null;
-
-    try {
-      const created = await apiFetch<Activity>("/api/activities", {
-        method: "POST",
-        body: JSON.stringify({
-          title: t,
-          description: d || null,
-          location: l,
-          lat,
-          lng,
-          whenISO: when.toISOString(),
-          type,
-          limit: limitNum,
-        }),
-      });
-      setActivities((prev) => [created, ...prev.filter((a) => a.id !== created.id)]);
-      setSelectedActivityId(created.id);
-      resetCreateForm();
-      await refreshActivities();
-      await refreshProfiles();
-      const nowRows = await apiFetch<Activity[]>("/api/activities");
-      const persisted = nowRows.some((row) => row.id === created.id);
-      if (!persisted) {
-        setToast("Could not confirm the post was saved. Please refresh and try again.");
-        return;
-      }
-      const hiddenByFilters =
-        (search.trim() && !`${created.title} ${created.description ?? ""} ${created.location} ${created.creatorName} ${created.type}`.toLowerCase().includes(search.trim().toLowerCase())) ||
-        (filterType !== "all" && created.type !== filterType) ||
-        (onlyOpen && ((created.limit !== null && created.going >= created.limit) || isClosedByWhen(created.whenISO)));
-      if (hiddenByFilters) {
-        setToast("Activity posted. Clear filters/search to see it in the feed.");
-      } else {
-        setToast("Activity posted.");
-      }
-      if (isMobileViewport()) setMobileMapPane("details");
-    } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not post activity");
-    }
-  }
-
-  async function joinActivity(activityId: string) {
-    if (!user) {
-      setToast("Login is required to join.");
-      return;
-    }
-    try {
-      const updated = await apiFetch<Activity>(`/api/activities/${activityId}/join`, { method: "POST" });
-      setActivities((prev) => prev.map((a) => (a.id === activityId ? { ...a, ...updated, joined: true } : a)));
-      setToast("Joined.");
-      await refreshProfiles();
-    } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not join");
-    }
-  }
-
-  async function leaveActivity(activityId: string) {
-    if (!user) {
-      setToast("Login is required to leave.");
-      return;
-    }
-    try {
-      const updated = await apiFetch<Activity>(`/api/activities/${activityId}/leave`, { method: "POST" });
-      setActivities((prev) => prev.map((a) => (a.id === activityId ? { ...a, ...updated, joined: false } : a)));
-      setToast("Left activity.");
-      await refreshProfiles();
-    } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not leave");
-    }
-  }
-
-  async function deleteActivity(activityId: string) {
-    const target = activities.find((a) => a.id === activityId);
-    if (!target) return;
-    if (!window.confirm(`Delete "${target.title}"?`)) return;
-    try {
-      await apiFetch(`/api/activities/${activityId}`, { method: "DELETE" });
-      setActivities((prev) => prev.filter((a) => a.id !== activityId));
-      if (selectedActivityId === activityId) setSelectedActivityId(null);
-      setToast("Deleted.");
-      await refreshProfiles();
-    } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not delete");
-    }
-  }
-
-  async function saveProfile() {
-    if (!user) return;
-    const displayName = safeText(editName);
-    if (!displayName) {
-      setToast("Display name is required.");
-      return;
-    }
-    if (editAvatarUrl && !isValidImageUrl(editAvatarUrl)) {
-      setToast("Avatar URL must be http/https.");
-      return;
-    }
-    try {
-      const updated = await apiFetch<User>(`/api/profiles/${user.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          displayName,
-          bio: editBio,
-          avatarUrl: editAvatarUrl,
-        }),
-      });
-      setUser(updated);
-      setEditName(updated.displayName);
-      setEditBio(updated.bio ?? "");
-      setEditAvatarUrl(updated.avatarUrl ?? "");
-      setToast("Profile updated.");
-      await refreshProfiles();
-      await loadProfile(updated.id);
-    } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not update profile");
-    }
-  }
-
-  async function postReview() {
-    if (!user || !profileDetail || profileDetail.profile.id === user.id) return;
-    const rating = clampInt(reviewRating, 1, 5);
-    const comment = safeText(reviewComment);
-    if (!rating || !comment) {
-      setToast("Rating and comment are required.");
-      return;
-    }
-    if (reviewMode === "profile" && !profileDetail.reviewContext?.canSubmitProfileReview) {
-      setToast("Profile review is not available.");
-      return;
-    }
-    if (reviewMode === "activity" && !reviewActivityId) {
-      setToast("Choose a shared activity first.");
-      return;
-    }
-    try {
-      await apiFetch(`/api/profiles/${profileDetail.profile.id}/reviews`, {
-        method: "POST",
-        body: JSON.stringify({
-          rating,
-          comment,
-          reviewType: reviewMode,
-          activityId: reviewMode === "activity" ? reviewActivityId : null,
-        }),
-      });
-      setReviewComment("");
-      setReviewRating("5");
-      setToast("Review posted.");
-      await loadProfile(profileDetail.profile.id);
-      await refreshProfiles();
-    } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not post review");
-    }
-  }
-
-  async function postGalleryEntry() {
-    if (!user || !profileDetail || profileDetail.profile.id !== user.id) return;
-    const imageUrl = safeText(galleryImageUrl);
-    const caption = safeText(galleryCaption);
-    const locationValue = safeText(galleryLocation);
-    const lat = galleryLat.trim() ? Number.parseFloat(galleryLat) : null;
-    const lng = galleryLng.trim() ? Number.parseFloat(galleryLng) : null;
-
-    if (!imageUrl || !caption) {
-      setToast("Image URL and caption are required.");
-      return;
-    }
-    if (!isValidImageUrl(imageUrl)) {
-      setToast("Image URL must be http/https.");
-      return;
-    }
-    if ((lat !== null && !Number.isFinite(lat)) || (lng !== null && !Number.isFinite(lng))) {
-      setToast("Coordinates must be valid numbers.");
-      return;
-    }
-
-    try {
-      await apiFetch(`/api/profiles/${user.id}/gallery`, {
-        method: "POST",
-        body: JSON.stringify({
-          imageUrl,
-          caption,
-          location: locationValue || null,
-          lat,
-          lng,
-        }),
-      });
-      setGalleryImageUrl("");
-      setGalleryCaption("");
-      setGalleryLocation("");
-      setGalleryLat("");
-      setGalleryLng("");
-      setToast("Diary entry added.");
-      await loadProfile(user.id);
-      await refreshProfiles();
-    } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not add diary entry");
-    }
-  }
-
-  function cycleTheme() {
-    const current = getTheme();
-    const next = current === "dark" ? "light" : current === "light" ? "system" : "dark";
-    localStorage.setItem(THEME_KEY, next);
-    applyTheme();
-    setToast(`Theme: ${next}`);
   }
 
   async function installApp() {
@@ -1024,398 +678,627 @@ export default function HangoutApp({
     setInstallPromptEvent(null);
   }
 
-  const isOwnSelectedActivity = !!(selectedActivity && user?.id && selectedActivity.creatorId === user.id);
+  async function searchPinLocation() {
+    const q = pinSearchQuery.trim();
+    if (!q) {
+      setPinSearchResults([]);
+      return;
+    }
 
-  function switchTab(nextTab: "map" | "profiles") {
-    setTab(nextTab);
-    if (nextTab === "map") setMobileMapPane("feed");
-    if (nextTab === "profiles") setMobileProfilesPane("list");
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        const target = nextTab === "map" ? mapSectionRef.current : profilesSectionRef.current;
-        target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setPinSearchLoading(true);
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=6`;
+      const res = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+        },
       });
-    });
+      if (!res.ok) throw new Error("Search failed");
+      const rows = (await res.json()) as NominatimResult[];
+      setPinSearchResults(rows);
+    } catch {
+      setPinSearchResults([]);
+      setToast({ tone: "error", message: "Location search failed" });
+    } finally {
+      setPinSearchLoading(false);
+    }
   }
 
-  function isMobileViewport(): boolean {
-    return typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
+  function selectPinResult(result: NominatimResult) {
+    const latNum = Number.parseFloat(result.lat);
+    const lngNum = Number.parseFloat(result.lon);
+    if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return;
+
+    setPinLat(latNum.toFixed(6));
+    setPinLng(lngNum.toFixed(6));
+
+    const pickerMap = pickerMapRef.current;
+    if (!pickerMap) return;
+
+    void (async () => {
+      const L = await loadLeaflet();
+      pickerMap.setView([latNum, lngNum], 12);
+      if (pickerMarkerRef.current) pickerMarkerRef.current.remove();
+      pickerMarkerRef.current = L.circleMarker([latNum, lngNum], {
+        radius: 8,
+        color: "#0f172a",
+        fillColor: "#f97316",
+        fillOpacity: 0.95,
+        weight: 2,
+      }).addTo(pickerMap);
+    })();
+  }
+
+  async function createActivity() {
+    if (!userId) {
+      setToast({ tone: "error", message: "Login required" });
+      return;
+    }
+
+    const cleanTitle = safeText(title);
+    const cleanDescription = safeText(description);
+    const cleanLocation = safeText(location);
+    const latNum = Number.parseFloat(pinLat);
+    const lngNum = Number.parseFloat(pinLng);
+    const limitNum = limit.trim() ? clampInt(limit, 2, 200) : null;
+
+    if (!cleanTitle || !cleanLocation || !Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+      setToast({ tone: "error", message: "Title, location, and map pin are required." });
+      return;
+    }
+
+    const when = new Date(`${date}T${time}:00`);
+    if (Number.isNaN(when.getTime())) {
+      setToast({ tone: "error", message: "Pick a valid date and time." });
+      return;
+    }
+
+    try {
+      const created = await apiFetch<Activity>("/api/activities", {
+        method: "POST",
+        body: JSON.stringify({
+          title: cleanTitle,
+          description: cleanDescription || null,
+          location: cleanLocation,
+          lat: latNum,
+          lng: lngNum,
+          whenISO: when.toISOString(),
+          type,
+          limit: limitNum,
+        }),
+      });
+
+      setActivities((prev) => [...prev, created]);
+      setSelectedActivityId(created.id);
+      setToast({ tone: "info", message: "Activity posted." });
+
+      setTitle("");
+      setDescription("");
+      setLocation("");
+      setType("chill");
+      setLimit("");
+      setPinSearchQuery("");
+      setPinSearchResults([]);
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not create activity" });
+    }
+  }
+
+  async function toggleJoin(activity: Activity) {
+    if (!userId) {
+      setToast({ tone: "error", message: "Login required" });
+      return;
+    }
+
+    try {
+      const path = activity.joined ? `/api/activities/${activity.id}/leave` : `/api/activities/${activity.id}/join`;
+      const updated = await apiFetch<Activity>(path, { method: "POST" });
+
+      setActivities((prev) =>
+        prev.map((row) =>
+          row.id === activity.id
+            ? {
+                ...row,
+                ...updated,
+                creatorName: row.creatorName,
+              }
+            : row,
+        ),
+      );
+
+      setToast({ tone: "info", message: updated.joined ? "You joined." : "You left." });
+      if (activeView === "profiles") {
+        void refreshProfiles();
+        if (selectedProfileId) {
+          void loadProfile(selectedProfileId);
+        }
+      }
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not update attendance" });
+    }
+  }
+
+  async function login() {
+    try {
+      const res = await apiFetch<{ user: User }>("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email: authEmail, password: authPassword }),
+      });
+      setUser(res.user);
+      setEditName(res.user.displayName);
+      setEditBio(res.user.bio ?? "");
+      setEditAvatarUrl(res.user.avatarUrl ?? "");
+      setAuthPassword("");
+      setToast({ tone: "info", message: `Welcome back ${res.user.displayName}.` });
+      await refreshActivities();
+      await refreshProfiles();
+      setSelectedProfileId(res.user.id);
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Login failed" });
+    }
+  }
+
+  async function signup() {
+    try {
+      const res = await apiFetch<{ user: User }>("/api/auth/signup", {
+        method: "POST",
+        body: JSON.stringify({
+          displayName: authName,
+          email: authEmail,
+          password: authPassword,
+        }),
+      });
+      setUser(res.user);
+      setEditName(res.user.displayName);
+      setEditBio(res.user.bio ?? "");
+      setEditAvatarUrl(res.user.avatarUrl ?? "");
+      setAuthPassword("");
+      setToast({ tone: "info", message: `Account created for ${res.user.displayName}.` });
+      await refreshActivities();
+      await refreshProfiles();
+      setSelectedProfileId(res.user.id);
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Signup failed" });
+    }
+  }
+
+  async function logout() {
+    try {
+      await apiFetch<{ ok: boolean }>("/api/auth/logout", { method: "POST" });
+      setUser(null);
+      setEditName("");
+      setEditBio("");
+      setEditAvatarUrl("");
+      setToast({ tone: "info", message: "You are signed out." });
+      await refreshActivities();
+      await refreshProfiles();
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Logout failed" });
+    }
+  }
+
+  function startGoogleLogin() {
+    window.location.href = "/api/auth/google/start";
+  }
+
+  async function saveProfile() {
+    if (!user) return;
+
+    try {
+      const updated = await apiFetch<User>(`/api/profiles/${user.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          displayName: editName,
+          bio: editBio,
+          avatarUrl: editAvatarUrl,
+        }),
+      });
+      setUser(updated);
+      setToast({ tone: "info", message: "Profile updated." });
+      await refreshProfiles();
+      await loadProfile(updated.id);
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not save profile" });
+    }
+  }
+
+  async function postReview() {
+    if (!user || !profileDetail) return;
+
+    try {
+      await apiFetch(`/api/profiles/${profileDetail.profile.id}/reviews`, {
+        method: "POST",
+        body: JSON.stringify({
+          rating: Number.parseInt(reviewRating, 10),
+          comment: reviewComment,
+          reviewType: reviewMode,
+          activityId: reviewMode === "activity" ? reviewActivityId : null,
+        }),
+      });
+      setReviewComment("");
+      setReviewRating("5");
+      setToast({ tone: "info", message: "Review posted." });
+      await refreshProfiles();
+      await loadProfile(profileDetail.profile.id);
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not post review" });
+    }
+  }
+
+  async function postGalleryEntry() {
+    if (!user || !profileDetail || profileDetail.profile.id !== user.id) return;
+
+    const imageUrl = safeText(galleryImageUrl);
+    const caption = safeText(galleryCaption);
+    if (!isValidImageUrl(imageUrl) || !caption) {
+      setToast({ tone: "error", message: "Add a valid image URL and caption." });
+      return;
+    }
+
+    try {
+      await apiFetch(`/api/profiles/${user.id}/gallery`, {
+        method: "POST",
+        body: JSON.stringify({
+          imageUrl,
+          caption,
+          location: safeText(galleryLocation) || null,
+          lat: safeText(galleryLat) ? Number.parseFloat(galleryLat) : null,
+          lng: safeText(galleryLng) ? Number.parseFloat(galleryLng) : null,
+        }),
+      });
+      setGalleryImageUrl("");
+      setGalleryCaption("");
+      setGalleryLocation("");
+      setGalleryLat("");
+      setGalleryLng("");
+      setToast({ tone: "info", message: "Diary entry added." });
+      await refreshProfiles();
+      await loadProfile(user.id);
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not add diary entry" });
+    }
+  }
+
+  function jumpToActivity(activityId: string) {
+    setActiveView("map");
+    setSelectedActivityId(activityId);
+    if (isMobileViewport()) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }
 
   return (
-    <div className="min-h-screen text-slate-900 dark:text-slate-100">
-      <header className="sticky top-0 z-30 safe-top border-b border-slate-300/70 dark:border-slate-700/80 bg-white/94 dark:bg-slate-950/92 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <h1 data-heading="true" className="text-lg sm:text-xl font-semibold tracking-tight truncate">Hangout</h1>
-              <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 truncate">Map, posts, and profiles in one compact workspace.</p>
+    <div className="min-h-dvh text-white pb-24 lg:pb-8">
+      <div className="aurora aurora-a" />
+      <div className="aurora aurora-b" />
+
+      <header className="relative z-10 mx-auto max-w-[1500px] px-4 pt-6 lg:px-8 lg:pt-8">
+        <div className="shell-panel p-4 lg:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="label-kicker">Urban Social Atlas</p>
+              <h1 className="mt-2 text-3xl font-bold tracking-tight lg:text-5xl">Hangout Control Room</h1>
+              <p className="mt-2 text-sm text-white/75 lg:text-base">
+                Plan local moments, monitor map activity in real-time, and keep your community reputation growing.
+              </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {installPromptEvent ? (
-                <button type="button" onClick={() => void installApp()} className="hidden sm:inline-flex h-9 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900 text-sm font-medium">
-                  Install App
-                </button>
-              ) : null}
-              <button type="button" onClick={cycleTheme} className="h-8 w-8 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-md border border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900">
-                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"></path>
-                </svg>
+
+            <div className="grid grid-cols-3 gap-2 lg:gap-3 min-w-[280px]">
+              <div className="metric-card">
+                <p className="metric-label">Upcoming</p>
+                <p className="metric-value">{upcomingCount}</p>
+              </div>
+              <div className="metric-card">
+                <p className="metric-label">Open Seats</p>
+                <p className="metric-value">{openSeatCount}</p>
+              </div>
+              <div className="metric-card">
+                <p className="metric-label">Members</p>
+                <p className="metric-value">{profiles.length}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveView("map")}
+              className={`tab-chip ${activeView === "map" ? "tab-chip-active" : ""}`}
+            >
+              Live Map
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveView("profiles")}
+              className={`tab-chip ${activeView === "profiles" ? "tab-chip-active" : ""}`}
+            >
+              Community
+            </button>
+            {installPromptEvent ? (
+              <button type="button" className="tab-chip ml-auto" onClick={() => void installApp()}>
+                Install App
               </button>
-              {user ? (
-                <button type="button" onClick={() => void logout()} className="h-8 sm:h-9 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900 text-xs sm:text-sm font-medium">
-                  Logout
-                </button>
-              ) : null}
-            </div>
+            ) : null}
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 safe-bottom fade-up">
-        <section className="mb-3 sm:mb-4 rounded-xl card-surface p-2.5 sm:p-3">
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-lg border border-slate-300/70 dark:border-slate-700/80 py-2">
-              <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Posts</p>
-              <p className="text-sm sm:text-base font-semibold">{activities.length}</p>
-            </div>
-            <div className="rounded-lg border border-slate-300/70 dark:border-slate-700/80 py-2">
-              <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Closed</p>
-              <p className="text-sm sm:text-base font-semibold">{closedCount}</p>
-            </div>
-            <div className="rounded-lg border border-slate-300/70 dark:border-slate-700/80 py-2">
-              <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Members</p>
-              <p className="text-sm sm:text-base font-semibold">{profiles.length}</p>
-            </div>
-          </div>
-        </section>
-
-        <div className="hidden sm:flex items-center gap-2 mb-3">
-          <button type="button" onClick={() => switchTab("map")} className={`h-9 px-4 rounded-md text-sm font-medium border ${tab === "map" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
-            Map + Posts
-          </button>
-          <button type="button" onClick={() => switchTab("profiles")} className={`h-9 px-4 rounded-md text-sm font-medium border ${tab === "profiles" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
-            Profiles
-          </button>
-        </div>
-
+      <main className="relative z-10 mx-auto mt-4 max-w-[1500px] px-4 lg:px-8">
         {!backendOk ? (
-          <div className="mb-4 rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
-            Backend is not reachable. Check `DATABASE_URL`.
-          </div>
+          <section className="shell-panel p-4 lg:p-6 mb-4">
+            <h2 className="text-xl font-semibold">Backend unavailable</h2>
+            <p className="text-sm text-white/75 mt-1">Set your database and env config, then reload to enable live data.</p>
+          </section>
         ) : null}
 
-        {!user ? (
-          <section className="mb-3 sm:mb-4 rounded-xl card-surface p-3 sm:p-4">
-            <h2 className="text-sm sm:text-base font-semibold">Sign in to join, post, and review</h2>
-            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-              Joining activities requires an account. Use Google for one-tap onboarding, or email login.
-            </p>
-            <div className="mt-2.5">
-              <button
-                type="button"
-                onClick={startGoogleLogin}
-                className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-white/95 dark:bg-slate-900 text-xs sm:text-sm font-semibold inline-flex items-center gap-2"
-              >
-                <span className="text-base leading-none">G</span>
-                Continue with Google
-              </button>
-            </div>
-            <div className="mt-3 border-t border-slate-200/70 dark:border-slate-700/70 pt-3">
-              <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Or use email</p>
-            </div>
-            <div className="mt-2.5 flex items-center gap-2">
-              <button type="button" onClick={() => setAuthMode("login")} className={`h-8 px-3 rounded-md border text-xs sm:text-sm ${authMode === "login" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>
-                Login
-              </button>
-              <button type="button" onClick={() => setAuthMode("signup")} className={`h-8 px-3 rounded-md border text-xs sm:text-sm ${authMode === "signup" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>
-                Signup
-              </button>
-            </div>
-            <div className="mt-2.5 grid grid-cols-1 md:grid-cols-4 gap-2">
-              {authMode === "signup" ? (
-                <input value={authName} onChange={(e) => setAuthName(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Display name" />
-              ) : null}
-              <input value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Email" />
-              <input value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} type="password" className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Password" />
-              <button type="button" onClick={() => void handleAuthSubmit()} className="h-10 px-3 rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs sm:text-sm font-medium">
-                {authMode === "signup" ? "Create Account" : "Login"}
-              </button>
-            </div>
-          </section>
-        ) : (
-          <section className="mb-3 sm:mb-4 rounded-xl card-surface p-3">
-            <div className="flex items-center gap-3">
-              <Avatar name={user.displayName} avatarUrl={user.avatarUrl} />
-              <div>
-                <p className="text-xs sm:text-sm font-semibold">{user.displayName}</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-300">{user.email}</p>
-              </div>
-            </div>
-          </section>
-        )}
-
-        <div className={tab === "map" ? "" : "hidden"} aria-hidden={tab !== "map"}>
-          <div ref={mapSectionRef} className="grid grid-cols-1 xl:grid-cols-[320px_1fr_300px] gap-3">
-            <section className="sm:hidden rounded-xl card-surface p-2">
-              <div className="grid grid-cols-3 gap-2">
-                <button type="button" onClick={() => setMobileMapPane("create")} className={`h-9 rounded-md text-xs font-medium border ${mobileMapPane === "create" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>Create</button>
-                <button type="button" onClick={() => setMobileMapPane("feed")} className={`h-9 rounded-md text-xs font-medium border ${mobileMapPane === "feed" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>Feed</button>
-                <button type="button" onClick={() => setMobileMapPane("details")} className={`h-9 rounded-md text-xs font-medium border ${mobileMapPane === "details" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>Details</button>
-              </div>
-            </section>
-
-            <section className={`rounded-xl card-surface p-3 ${mobileMapPane !== "create" ? "hidden sm:block" : ""}`}>
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold">Create Post</h2>
-                <button type="button" onClick={resetCreateForm} className="text-xs text-slate-600 dark:text-slate-300">
-                  Reset
-                </button>
-              </div>
-              <div className="mt-2.5 space-y-2.5">
-                <input value={title} onChange={(e) => setTitle(e.target.value)} className="h-10 w-full px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Task or meetup title" />
-                <input value={location} onChange={(e) => setLocation(e.target.value)} className="h-10 w-full px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Location name" />
-                <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full min-h-24 px-3 py-2 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Details" />
-                <div className="grid grid-cols-2 gap-3">
-                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" />
-                  <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" />
+        {activeView === "map" ? (
+          <section className="grid gap-4 lg:grid-cols-[350px_1fr_360px]">
+            <aside className="shell-panel p-4 lg:p-5 space-y-4">
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">Filters</h2>
+                  <button type="button" className="link-btn" onClick={() => void refreshActivities()}>
+                    Refresh
+                  </button>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <select value={type} onChange={(e) => setType(e.target.value as ActivityType)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent">
+
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search title, place, host"
+                  className="field"
+                />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <select value={filterType} onChange={(event) => setFilterType(event.target.value as typeof filterType)} className="field">
+                    <option value="all">All types</option>
                     <option value="chill">Chill</option>
                     <option value="active">Active</option>
                     <option value="help">Help</option>
                   </select>
-                  <input value={limit} onChange={(e) => setLimit(e.target.value)} type="number" min={2} max={200} placeholder="Limit optional" className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" />
+                  <select value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)} className="field">
+                    <option value="soonest">Soonest</option>
+                    <option value="newest">Newest</option>
+                  </select>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <input value={pinLat} onChange={(e) => setPinLat(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Latitude" />
-                  <input value={pinLng} onChange={(e) => setPinLng(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Longitude" />
+
+                <label className="flex items-center gap-2 text-sm text-white/80">
+                  <input type="checkbox" checked={onlyOpen} onChange={(event) => setOnlyOpen(event.target.checked)} className="accent-orange-400" />
+                  Only show activities with open seats
+                </label>
+              </section>
+
+              <section className="space-y-3">
+                <h2 className="text-lg font-semibold">Create activity</h2>
+                <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title" className="field" />
+                <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description" className="field min-h-20" />
+                <input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Location label" className="field" />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="field" />
+                  <input type="time" value={time} onChange={(event) => setTime(event.target.value)} className="field" />
                 </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <select value={type} onChange={(event) => setType(event.target.value as ActivityType)} className="field">
+                    <option value="chill">Chill</option>
+                    <option value="active">Active</option>
+                    <option value="help">Help</option>
+                  </select>
+                  <input value={limit} onChange={(event) => setLimit(event.target.value)} placeholder="Limit optional" className="field" />
+                </div>
+
                 <div className="space-y-2">
-                  <div className="grid grid-cols-[1fr_auto] gap-2">
+                  <div className="flex items-center gap-2">
                     <input
                       value={pinSearchQuery}
-                      onChange={(e) => setPinSearchQuery(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          void searchLocationPin();
-                        }
-                      }}
-                      className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent"
-                      placeholder="Search place (free OSM)"
+                      onChange={(event) => setPinSearchQuery(event.target.value)}
+                      placeholder="Search pin location"
+                      className="field"
                     />
-                    <button type="button" onClick={() => void searchLocationPin()} disabled={pinSearchLoading} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 text-xs sm:text-sm font-medium disabled:opacity-60">
-                      {pinSearchLoading ? "Searching..." : "Search"}
+                    <button type="button" className="action-ghost whitespace-nowrap" onClick={() => void searchPinLocation()}>
+                      {pinSearchLoading ? "..." : "Find"}
                     </button>
                   </div>
+
                   {pinSearchResults.length > 0 ? (
-                    <div className="max-h-32 overflow-auto rounded-md border border-slate-300/70 dark:border-slate-700 divide-y divide-slate-300/60 dark:divide-slate-700/70">
-                      {pinSearchResults.map((result) => (
-                        <button key={result.place_id} type="button" onClick={() => void applyPinResult(result)} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
-                          {result.display_name}
+                    <div className="max-h-32 overflow-auto rounded-xl border border-white/15 bg-black/20">
+                      {pinSearchResults.map((row) => (
+                        <button
+                          key={row.place_id}
+                          type="button"
+                          onClick={() => selectPinResult(row)}
+                          className="w-full px-3 py-2 text-left text-xs hover:bg-white/10"
+                        >
+                          {row.display_name}
                         </button>
                       ))}
                     </div>
                   ) : null}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <input value={pinLat} onChange={(event) => setPinLat(event.target.value)} placeholder="Lat" className="field" />
+                    <input value={pinLng} onChange={(event) => setPinLng(event.target.value)} placeholder="Lng" className="field" />
+                  </div>
+
+                  <div ref={pickerMapElRef} className="h-40 rounded-2xl border border-white/20 overflow-hidden" />
                 </div>
-                <div className="rounded-lg border border-slate-300/70 dark:border-slate-700 overflow-hidden">
-                  <div ref={pickerMapElRef} className="h-44 w-full" />
-                </div>
-                <button type="button" onClick={() => void createActivity()} className="h-10 w-full rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-medium text-sm">
-                  Post Activity
+
+                <button type="button" className="action-primary w-full" onClick={() => void createActivity()}>
+                  Publish Activity
                 </button>
-              </div>
+              </section>
+
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">Account</h2>
+                  {user ? (
+                    <button type="button" onClick={() => void logout()} className="link-btn">
+                      Logout
+                    </button>
+                  ) : null}
+                </div>
+
+                {user ? (
+                  <div className="rounded-2xl border border-white/15 bg-black/20 p-3">
+                    <div className="flex items-center gap-2">
+                      <Avatar name={user.displayName} avatarUrl={user.avatarUrl} />
+                      <div>
+                        <p className="font-semibold">{user.displayName}</p>
+                        <p className="text-xs text-white/70">{user.email}</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {authMode === "signup" ? (
+                      <input value={authName} onChange={(event) => setAuthName(event.target.value)} placeholder="Display name" className="field" />
+                    ) : null}
+                    <input value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} placeholder="Email" className="field" />
+                    <input type="password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} placeholder="Password" className="field" />
+                    <button
+                      type="button"
+                      className="action-primary w-full"
+                      onClick={() => void (authMode === "login" ? login() : signup())}
+                    >
+                      {authMode === "login" ? "Login" : "Create account"}
+                    </button>
+                    <button type="button" className="action-ghost w-full" onClick={startGoogleLogin}>
+                      Continue with Google
+                    </button>
+                    <button
+                      type="button"
+                      className="link-btn"
+                      onClick={() => setAuthMode((prev) => (prev === "login" ? "signup" : "login"))}
+                    >
+                      {authMode === "login" ? "Need an account? Sign up" : "Already have an account? Login"}
+                    </button>
+                  </div>
+                )}
+              </section>
+            </aside>
+
+            <section className="shell-panel p-3 lg:p-4">
+              <div ref={mapElRef} className="h-[320px] lg:h-[760px] rounded-[20px] overflow-hidden border border-white/20" />
             </section>
 
-            <section className={`rounded-xl card-surface overflow-hidden ${mobileMapPane !== "feed" ? "hidden sm:block" : ""}`}>
-              <div className="p-3 border-b border-slate-300/60 dark:border-slate-700/70">
-                <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto_auto] gap-2">
-                  <input value={search} onChange={(e) => setSearch(e.target.value)} type="search" placeholder="Search posts, location, host" className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent text-sm" />
-                  <select value={filterType} onChange={(e) => setFilterType(e.target.value as "all" | ActivityType)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent text-sm">
-                    <option value="all">All</option>
-                    <option value="chill">Chill</option>
-                    <option value="active">Active</option>
-                    <option value="help">Help</option>
-                  </select>
-                  <select value={sortBy} onChange={(e) => setSortBy(e.target.value as "soonest" | "newest")} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent text-sm">
-                    <option value="soonest">Soonest</option>
-                    <option value="newest">Newest</option>
-                  </select>
-                  <label className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 text-sm flex items-center gap-2">
-                    <input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} />
-                    Open
-                  </label>
-                </div>
-              </div>
+            <aside className="shell-panel p-4 lg:p-5 space-y-3">
+              <h2 className="text-lg font-semibold">Activity rail</h2>
 
-              <div className="border-b border-slate-300/60 dark:border-slate-700/70">
-                <div ref={mapElRef} className="h-[260px] sm:h-[360px] w-full" />
-              </div>
-
-              <div className="max-h-[420px] sm:max-h-[520px] overflow-auto divide-y divide-slate-300/60 dark:divide-slate-700/70">
+              <div className="max-h-[280px] lg:max-h-[460px] overflow-auto space-y-2 pr-1">
                 {filteredActivities.length === 0 ? (
-                  <div className="p-6 text-sm text-slate-600 dark:text-slate-300">No posts found.</div>
+                  <p className="text-sm text-white/70">No activities found.</p>
                 ) : (
-                  filteredActivities.map((item) => {
-                    const isFull = item.limit !== null && item.going >= item.limit;
-                    const isClosed = isClosedByWhen(item.whenISO);
-                    const selected = selectedActivityId === item.id;
-                    const isMine = !!(user?.id && item.creatorId === user.id);
+                  filteredActivities.map((activity) => {
+                    const closed = isClosedByWhen(activity.whenISO, nowTick);
+                    const full = activity.limit !== null && activity.going >= activity.limit;
+                    const stateLabel = closed ? "Closed" : full ? "Full" : "Open";
+                    const stateClass = closed ? "text-red-300" : full ? "text-yellow-300" : "text-emerald-300";
+
                     return (
-                      <article
-                        key={item.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => {
-                          setSelectedActivityId(item.id);
-                          if (isMobileViewport()) setMobileMapPane("details");
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            setSelectedActivityId(item.id);
-                          }
-                        }}
-                        className={`p-3 sm:p-4 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 ${
-                          isClosed
-                            ? selected
-                              ? "bg-rose-100/85 dark:bg-rose-950/35 border-l-4 border-rose-500"
-                              : "bg-rose-50/70 dark:bg-rose-950/20 hover:bg-rose-100/70 dark:hover:bg-rose-950/30 border-l-4 border-rose-400/70"
-                            : selected
-                              ? "bg-slate-100/80 dark:bg-slate-800/70"
-                              : "hover:bg-slate-100/60 dark:hover:bg-slate-800/40"
+                      <button
+                        key={activity.id}
+                        type="button"
+                        onClick={() => setSelectedActivityId(activity.id)}
+                        className={`w-full rounded-2xl border p-3 text-left transition ${
+                          selectedActivityId === activity.id
+                            ? "border-orange-400 bg-orange-500/12"
+                            : "border-white/15 bg-black/20 hover:bg-white/10"
                         }`}
                       >
-                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="mb-2 hidden sm:block overflow-hidden rounded-lg border border-slate-200/70 dark:border-slate-700/70">
-                              <Image src={TYPE_VISUAL[item.type]} alt={`${TYPE_META[item.type].label} activity mood`} width={1200} height={800} className="h-20 w-full object-cover" />
-                            </div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`inline-flex h-6 items-center rounded-md px-2 text-xs font-medium ${TYPE_META[item.type].chip}`}>{TYPE_META[item.type].label}</span>
-                              <span className="text-xs text-slate-500 dark:text-slate-300">Host: {item.creatorName}</span>
-                              {isClosed ? <span className="inline-flex h-6 items-center rounded-md px-2 text-[11px] font-semibold bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200">Closed</span> : null}
-                            </div>
-                            <h3 className="mt-1 text-sm sm:text-base font-semibold break-words">{item.title}</h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-300">{item.location} • {formatWhen(item.whenISO)}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-300">Going {item.going}{item.limit ? `/${item.limit}` : ""}</p>
-                            {item.description ? <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] overflow-hidden">{item.description}</p> : null}
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0 sm:self-start">
-                            {item.joined ? (
-                              <button type="button" onClick={(e) => { e.stopPropagation(); void leaveActivity(item.id); }} className="h-8 sm:h-9 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 text-xs sm:text-sm">
-                                Leave
-                              </button>
-                            ) : !user ? (
-                              <button type="button" disabled className="h-8 sm:h-9 px-3 rounded-md text-xs sm:text-sm font-medium opacity-70 cursor-not-allowed border border-slate-300/70 dark:border-slate-700">
-                                Login to Join
-                              </button>
-                            ) : (
-                              <button type="button" disabled={isFull || isClosed} onClick={(e) => { e.stopPropagation(); void joinActivity(item.id); }} className={`h-8 sm:h-9 px-3 rounded-md text-xs sm:text-sm font-medium ${isFull || isClosed ? "opacity-50 cursor-not-allowed border border-slate-300/70 dark:border-slate-700" : "bg-slate-900 text-white dark:bg-white dark:text-slate-900"}`}>
-                                {isClosed ? "Closed" : isFull ? "Full" : "Join"}
-                              </button>
-                            )}
-                            {isMine ? (
-                              <button type="button" onClick={(e) => { e.stopPropagation(); void deleteActivity(item.id); }} className="h-8 sm:h-9 px-3 rounded-md border border-rose-300/70 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs sm:text-sm">
-                                Delete
-                              </button>
-                            ) : null}
-                          </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-semibold text-sm leading-tight">{activity.title}</p>
+                          <span className={`text-xs ${stateClass}`}>{stateLabel}</span>
                         </div>
-                      </article>
+                        <p className="mt-1 text-xs text-white/70">{activity.location}</p>
+                        <div className="mt-2 flex items-center gap-2 text-[11px] text-white/60">
+                          <span>{TYPE_META[activity.type].label}</span>
+                          <span>-</span>
+                          <span>{formatWhen(activity.whenISO)}</span>
+                        </div>
+                      </button>
                     );
                   })
                 )}
               </div>
-            </section>
 
-            <section className={`rounded-xl card-surface p-3 ${mobileMapPane !== "details" ? "hidden sm:block" : ""}`}>
-              <h2 className="text-xs sm:text-sm font-semibold">Post Details</h2>
-              {!selectedActivity ? (
-                <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">Select a post from the map feed.</p>
-              ) : (
-                <div className="mt-3 space-y-3 text-sm">
-                  {isClosedByWhen(selectedActivity.whenISO) ? (
-                    <p className="inline-flex rounded-md bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200 px-2 py-1 text-xs font-semibold border border-rose-300/60 dark:border-rose-700/60">
-                      Closed
+              {selectedActivity ? (
+                <article className="rounded-2xl border border-white/20 bg-black/25 p-3">
+                  <div className="overflow-hidden rounded-xl border border-white/10">
+                    <Image
+                      src={TYPE_META[selectedActivity.type].scene}
+                      alt={selectedActivity.type}
+                      width={900}
+                      height={420}
+                      className="h-32 w-full object-cover"
+                    />
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-base font-semibold leading-tight">{selectedActivity.title}</h3>
+                      {selectedTypeMeta ? (
+                        <span className="rounded-full px-2 py-1 text-xs font-semibold" style={{ background: `${selectedTypeMeta.accent}33`, color: selectedTypeMeta.accent }}>
+                          {selectedTypeMeta.label}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="text-sm text-white/75">{selectedActivity.description || "No description provided."}</p>
+                    <p className="text-xs text-white/60">By {selectedActivity.creatorName}</p>
+                    <p className="text-xs text-white/60">{selectedActivity.location}</p>
+                    <p className="text-xs text-white/60">{formatWhen(selectedActivity.whenISO)}</p>
+                    <p className="text-xs text-white/60">
+                      {selectedActivity.going}
+                      {selectedActivity.limit !== null ? ` / ${selectedActivity.limit}` : ""} going
                     </p>
-                  ) : null}
-                  <div className="overflow-hidden rounded-lg border border-slate-200/70 dark:border-slate-700/70">
-                    <Image src={TYPE_VISUAL[selectedActivity.type]} alt={`${TYPE_META[selectedActivity.type].label} activity visual`} width={1200} height={800} className="h-44 w-full object-cover" />
                   </div>
-                  <h3 className="text-base font-semibold">{selectedActivity.title}</h3>
-                  <div className="grid grid-cols-[66px_1fr] gap-y-1 text-xs sm:text-sm">
-                    <p className="text-slate-500 dark:text-slate-400">Host</p><p>{selectedActivity.creatorName}</p>
-                    <p className="text-slate-500 dark:text-slate-400">Where</p><p>{selectedActivity.location}</p>
-                    <p className="text-slate-500 dark:text-slate-400">When</p><p>{formatWhen(selectedActivity.whenISO)}</p>
-                    <p className="text-slate-500 dark:text-slate-400">Going</p><p>{selectedActivity.going}{selectedActivity.limit ? `/${selectedActivity.limit}` : ""}</p>
-                  </div>
-                  {selectedActivity.lat !== null && selectedActivity.lng !== null ? (
-                    <p className="text-slate-500 dark:text-slate-300 text-xs">Coords: {selectedActivity.lat.toFixed(5)}, {selectedActivity.lng.toFixed(5)}</p>
-                  ) : null}
-                  {selectedActivity.description ? <p className="text-slate-600 dark:text-slate-300 rounded-md bg-slate-100/70 dark:bg-slate-800/40 p-2">{selectedActivity.description}</p> : null}
-                  <div className="pt-2 flex items-center gap-2 flex-wrap">
-                    {selectedActivity.joined ? (
-                      <button type="button" onClick={() => void leaveActivity(selectedActivity.id)} className="h-10 px-4 rounded-md border border-slate-300/70 dark:border-slate-700 text-sm font-medium">
-                        Leave Activity
-                      </button>
-                    ) : !user ? (
-                      <button type="button" disabled className="h-10 px-4 rounded-md border border-slate-300/70 dark:border-slate-700 text-sm font-medium opacity-70 cursor-not-allowed">
-                        Login to Join
-                      </button>
-                    ) : isClosedByWhen(selectedActivity.whenISO) ? (
-                      <button type="button" disabled className="h-10 px-4 rounded-md border border-slate-300/70 dark:border-slate-700 text-sm font-medium opacity-70 cursor-not-allowed">
-                        Closed
-                      </button>
-                    ) : (
-                      <button type="button" onClick={() => void joinActivity(selectedActivity.id)} className="h-10 px-4 rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-sm font-medium">
-                        Join Activity
-                      </button>
-                    )}
-                    {isOwnSelectedActivity ? (
-                      <button type="button" onClick={() => void deleteActivity(selectedActivity.id)} className="h-10 px-4 rounded-md border border-rose-300/70 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-sm">
-                        Delete
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              )}
-            </section>
-          </div>
-        </div>
-        <div className={tab === "profiles" ? "" : "hidden"} aria-hidden={tab !== "profiles"}>
-          <div ref={profilesSectionRef} className="grid grid-cols-1 xl:grid-cols-[300px_1fr] gap-3">
-            <section className="sm:hidden rounded-xl card-surface p-2">
-              <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => setMobileProfilesPane("list")} className={`h-9 rounded-md text-xs font-medium border ${mobileProfilesPane === "list" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>People</button>
-                <button type="button" onClick={() => setMobileProfilesPane("detail")} className={`h-9 rounded-md text-xs font-medium border ${mobileProfilesPane === "detail" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"}`}>Profile</button>
-              </div>
-            </section>
 
-            <section className={`rounded-xl card-surface p-3 ${mobileProfilesPane !== "list" ? "hidden sm:block" : ""}`}>
+                  <button
+                    type="button"
+                    className="action-primary w-full mt-3"
+                    disabled={isClosedByWhen(selectedActivity.whenISO, nowTick)}
+                    onClick={() => void toggleJoin(selectedActivity)}
+                  >
+                    {selectedActivity.joined ? "Leave" : "Join"}
+                  </button>
+                </article>
+              ) : null}
+            </aside>
+          </section>
+        ) : (
+          <section className="grid gap-4 lg:grid-cols-[340px_1fr]">
+            <aside className="shell-panel p-4 lg:p-5">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold">Community</h2>
-                <button type="button" onClick={() => void refreshProfiles()} className="text-xs text-slate-600 dark:text-slate-300">
+                <h2 className="text-lg font-semibold">People</h2>
+                <button type="button" onClick={() => void refreshProfiles()} className="link-btn">
                   Refresh
                 </button>
               </div>
-              <div className="mt-2.5 space-y-2 max-h-[760px] overflow-auto">
+
+              <div className="mt-3 max-h-[780px] overflow-auto space-y-2 pr-1">
                 {profiles.map((profile) => (
-                  <button key={profile.id} type="button" onClick={() => { setSelectedProfileId(profile.id); if (isMobileViewport()) setMobileProfilesPane("detail"); }} className={`w-full text-left p-3 rounded-md border ${selectedProfileId === profile.id ? "border-slate-900 dark:border-white" : "border-slate-300/70 dark:border-slate-700"} hover:bg-slate-100/50 dark:hover:bg-slate-800/40`}>
+                  <button
+                    key={profile.id}
+                    type="button"
+                    onClick={() => setSelectedProfileId(profile.id)}
+                    className={`w-full rounded-2xl border p-3 text-left transition ${
+                      selectedProfileId === profile.id
+                        ? "border-orange-400 bg-orange-500/12"
+                        : "border-white/15 bg-black/20 hover:bg-white/10"
+                    }`}
+                  >
                     <div className="flex items-center gap-2">
                       <Avatar name={profile.displayName} avatarUrl={profile.avatarUrl} size="sm" />
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold truncate">{profile.displayName}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-300 truncate">
-                          {profile.avgRating !== null ? `${profile.avgRating.toFixed(1)} stars` : "No rating"} • {profile.reviewCount} reviews
+                        <p className="truncate font-semibold text-sm">{profile.displayName}</p>
+                        <p className="truncate text-xs text-white/65">
+                          {profile.avgRating !== null ? `${profile.avgRating.toFixed(1)} stars` : "No rating"} - {profile.reviewCount} reviews
                         </p>
                       </div>
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
+                    <div className="mt-2 flex flex-wrap gap-1">
                       {profile.badges.slice(0, 3).map((badge) => (
-                        <span key={badge.id} className="text-[11px] px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800">
+                        <span key={badge.id} className="rounded-full border border-white/20 bg-white/8 px-2 py-1 text-[11px]">
                           {badge.label}
                         </span>
                       ))}
@@ -1423,233 +1306,228 @@ export default function HangoutApp({
                   </button>
                 ))}
               </div>
-            </section>
+            </aside>
 
-            <section className={`rounded-xl card-surface p-3 ${mobileProfilesPane !== "detail" ? "hidden sm:block" : ""}`}>
+            <section className="shell-panel p-4 lg:p-5">
               {loadingProfile ? (
-                <p className="text-sm text-slate-600 dark:text-slate-300">Loading profile...</p>
+                <p className="text-sm text-white/70">Loading profile...</p>
               ) : !profileDetail ? (
-                <p className="text-sm text-slate-600 dark:text-slate-300">Select a profile.</p>
+                <p className="text-sm text-white/70">Select a profile.</p>
               ) : (
-                <div className="space-y-5">
-                  <div className="overflow-hidden rounded-xl border border-slate-200/70 dark:border-slate-700/70">
-                    <Image
-                      src={TYPE_VISUAL[(profileDetail.stats.createdCount >= profileDetail.stats.joinedCount ? "active" : "chill") as ActivityType]}
-                      alt="Profile banner"
-                      width={1200}
-                      height={800}
-                      className="h-44 w-full object-cover"
-                    />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Avatar name={profileDetail.profile.displayName} avatarUrl={profileDetail.profile.avatarUrl} />
-                    <div>
-                      <h2 className="text-base font-semibold">{profileDetail.profile.displayName}</h2>
-                      <p className="text-sm text-slate-600 dark:text-slate-300">{profileDetail.profile.bio || "No bio yet."}</p>
+                <div className="space-y-4">
+                  <article className="rounded-2xl border border-white/20 bg-black/20 p-4">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="flex items-center gap-3">
+                        <Avatar name={profileDetail.profile.displayName} avatarUrl={profileDetail.profile.avatarUrl} />
+                        <div>
+                          <h2 className="text-xl font-semibold">{profileDetail.profile.displayName}</h2>
+                          <p className="text-sm text-white/70">{profileDetail.profile.bio || "No bio yet."}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 text-center">
+                        <div className="metric-card"><p className="metric-label">Created</p><p className="metric-value text-xl">{profileDetail.stats.createdCount}</p></div>
+                        <div className="metric-card"><p className="metric-label">Joined</p><p className="metric-value text-xl">{profileDetail.stats.joinedCount}</p></div>
+                        <div className="metric-card"><p className="metric-label">Diary</p><p className="metric-value text-xl">{profileDetail.stats.diaryCount}</p></div>
+                        <div className="metric-card"><p className="metric-label">Reviews</p><p className="metric-value text-xl">{profileDetail.stats.reviewCount}</p></div>
+                        <div className="metric-card"><p className="metric-label">Rating</p><p className="metric-value text-xl">{profileDetail.stats.avgRating ?? "-"}</p></div>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                    <div className="rounded-md border border-slate-300/70 dark:border-slate-700 p-2"><p className="text-xs text-slate-500">Created</p><p className="font-semibold">{profileDetail.stats.createdCount}</p></div>
-                    <div className="rounded-md border border-slate-300/70 dark:border-slate-700 p-2"><p className="text-xs text-slate-500">Joined</p><p className="font-semibold">{profileDetail.stats.joinedCount}</p></div>
-                    <div className="rounded-md border border-slate-300/70 dark:border-slate-700 p-2"><p className="text-xs text-slate-500">Diary</p><p className="font-semibold">{profileDetail.stats.diaryCount}</p></div>
-                    <div className="rounded-md border border-slate-300/70 dark:border-slate-700 p-2"><p className="text-xs text-slate-500">Reviews</p><p className="font-semibold">{profileDetail.stats.reviewCount}</p></div>
-                    <div className="rounded-md border border-slate-300/70 dark:border-slate-700 p-2"><p className="text-xs text-slate-500">Rating</p><p className="font-semibold">{profileDetail.stats.avgRating ?? "-"}</p></div>
-                  </div>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {profileDetail.stats.badges.map((badge) => (
+                        <span key={badge.id} title={badge.description} className="rounded-full border border-white/20 bg-white/8 px-2.5 py-1 text-xs">
+                          {badge.label}
+                        </span>
+                      ))}
+                    </div>
+                  </article>
 
-                  <div className="flex flex-wrap gap-2">
-                    {profileDetail.stats.badges.map((badge) => (
-                      <span key={badge.id} title={badge.description} className="text-xs px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800">
-                        {badge.label}
-                      </span>
-                    ))}
-                  </div>
-
-                  {user && profileDetail.profile.id === user.id ? (
-                    <section className="rounded-lg border border-slate-300/70 dark:border-slate-700 p-3 space-y-3">
-                      <h3 className="text-sm font-semibold">Edit profile</h3>
-                      <input value={editName} onChange={(e) => setEditName(e.target.value)} className="h-10 w-full px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Display name" />
-                      <input value={editAvatarUrl} onChange={(e) => setEditAvatarUrl(e.target.value)} className="h-10 w-full px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Avatar URL" />
-                      <textarea value={editBio} onChange={(e) => setEditBio(e.target.value)} className="w-full min-h-20 px-3 py-2 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Bio" />
-                      <button type="button" onClick={() => void saveProfile()} className="h-10 px-4 rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-sm font-medium">
+                  {user && user.id === profileDetail.profile.id ? (
+                    <article className="rounded-2xl border border-white/20 bg-black/20 p-4 space-y-2">
+                      <h3 className="text-base font-semibold">Edit profile</h3>
+                      <input value={editName} onChange={(event) => setEditName(event.target.value)} placeholder="Display name" className="field" />
+                      <input value={editAvatarUrl} onChange={(event) => setEditAvatarUrl(event.target.value)} placeholder="Avatar URL" className="field" />
+                      <textarea value={editBio} onChange={(event) => setEditBio(event.target.value)} placeholder="Bio" className="field min-h-20" />
+                      <button type="button" className="action-primary" onClick={() => void saveProfile()}>
                         Save Profile
                       </button>
-                    </section>
+                    </article>
                   ) : null}
 
                   {!user ? (
-                    <section className="rounded-lg border border-slate-300/70 dark:border-slate-700 p-3 space-y-2">
-                      <h3 className="text-sm font-semibold">Reviews require an account</h3>
-                      <p className="text-xs text-slate-600 dark:text-slate-300">Join an activity together first, then review this profile or a specific shared activity.</p>
-                      <button type="button" onClick={startGoogleLogin} className="h-10 px-4 rounded-md border border-slate-300/70 dark:border-slate-700 bg-white/95 dark:bg-slate-900 text-sm font-medium">
+                    <article className="rounded-2xl border border-white/20 bg-black/20 p-4 space-y-2">
+                      <h3 className="text-base font-semibold">Reviews need an account</h3>
+                      <p className="text-sm text-white/70">Login first, then join shared activities to unlock reputation reviews.</p>
+                      <button type="button" className="action-primary" onClick={startGoogleLogin}>
                         Continue with Google
                       </button>
-                    </section>
+                    </article>
                   ) : null}
 
-                  {user && profileDetail.profile.id !== user.id ? (
-                    <section className="rounded-lg border border-slate-300/70 dark:border-slate-700 p-3 space-y-3">
-                      <h3 className="text-sm font-semibold">Write review</h3>
+                  {user && user.id !== profileDetail.profile.id ? (
+                    <article className="rounded-2xl border border-white/20 bg-black/20 p-4 space-y-2">
+                      <h3 className="text-base font-semibold">Write review</h3>
                       <div className="flex items-center gap-2 flex-wrap">
                         <button
                           type="button"
-                          disabled={!profileDetail.reviewContext?.canSubmitProfileReview}
                           onClick={() => setReviewMode("profile")}
-                          className={`h-9 px-3 rounded-md border text-sm ${reviewMode === "profile" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"} ${!profileDetail.reviewContext?.canSubmitProfileReview ? "opacity-60 cursor-not-allowed" : ""}`}
+                          disabled={!profileDetail.reviewContext?.canSubmitProfileReview}
+                          className={`action-ghost ${reviewMode === "profile" ? "bg-white/20" : ""}`}
                         >
-                          Whole Profile
+                          Whole profile
                         </button>
                         <button
                           type="button"
-                          disabled={availableActivityReviewOptions.length === 0}
                           onClick={() => setReviewMode("activity")}
-                          className={`h-9 px-3 rounded-md border text-sm ${reviewMode === "activity" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700"} ${availableActivityReviewOptions.length === 0 ? "opacity-60 cursor-not-allowed" : ""}`}
+                          disabled={availableActivityReviewOptions.length === 0}
+                          className={`action-ghost ${reviewMode === "activity" ? "bg-white/20" : ""}`}
                         >
-                          Specific Activity
+                          Specific activity
                         </button>
                       </div>
-                      {reviewMode === "profile" ? (
-                        <p className="text-xs text-slate-600 dark:text-slate-300">
-                          {profileDetail.reviewContext?.canSubmitProfileReview
-                            ? "This posts one overall profile review."
-                            : profileDetail.reviewContext?.hasProfileReview
-                              ? "You already posted a profile review."
-                              : "Profile review unlocks after you join at least one activity together."}
-                        </p>
+
+                      {reviewMode === "activity" ? (
+                        <select value={reviewActivityId} onChange={(event) => setReviewActivityId(event.target.value)} className="field">
+                          {availableActivityReviewOptions.length === 0 ? <option value="">No shared activities</option> : null}
+                          {availableActivityReviewOptions.map((activity) => (
+                            <option key={activity.id} value={activity.id}>
+                              {activity.title} - {activity.location}
+                            </option>
+                          ))}
+                        </select>
                       ) : (
-                        <div className="space-y-2">
-                          <select
-                            value={reviewActivityId}
-                            onChange={(e) => setReviewActivityId(e.target.value)}
-                            disabled={availableActivityReviewOptions.length === 0}
-                            className="h-10 w-full px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent text-sm disabled:opacity-60"
-                          >
-                            {availableActivityReviewOptions.length === 0 ? (
-                              <option value="">No shared activities available</option>
-                            ) : null}
-                            {availableActivityReviewOptions.map((activity) => (
-                              <option key={activity.id} value={activity.id}>
-                                {activity.title} - {activity.location}
-                              </option>
-                            ))}
-                          </select>
-                          <p className="text-xs text-slate-600 dark:text-slate-300">Only people who joined the same activity can post this review.</p>
-                        </div>
+                        <p className="text-xs text-white/65">
+                          {profileDetail.reviewContext?.canSubmitProfileReview
+                            ? "This posts one full profile review."
+                            : "Profile review unlocks after at least one shared activity and only once."}
+                        </p>
                       )}
+
                       <div className="grid grid-cols-[120px_1fr] gap-2">
-                        <select value={reviewRating} onChange={(e) => setReviewRating(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent">
+                        <select value={reviewRating} onChange={(event) => setReviewRating(event.target.value)} className="field">
                           <option value="5">5 stars</option>
                           <option value="4">4 stars</option>
                           <option value="3">3 stars</option>
                           <option value="2">2 stars</option>
                           <option value="1">1 star</option>
                         </select>
-                        <input value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Your comment" />
+                        <input value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} placeholder="Comment" className="field" />
                       </div>
+
                       <button
                         type="button"
+                        className="action-primary"
                         onClick={() => void postReview()}
                         disabled={reviewMode === "profile" ? !profileDetail.reviewContext?.canSubmitProfileReview : availableActivityReviewOptions.length === 0}
-                        className="h-10 px-4 rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         Post Review
                       </button>
-                    </section>
+                    </article>
                   ) : null}
 
-                  {user && profileDetail.profile.id === user.id ? (
-                    <section className="rounded-lg border border-slate-300/70 dark:border-slate-700 p-3 space-y-3">
-                      <h3 className="text-sm font-semibold">Add diary entry</h3>
-                      <input value={galleryImageUrl} onChange={(e) => setGalleryImageUrl(e.target.value)} className="h-10 w-full px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Image URL" />
-                      <input value={galleryCaption} onChange={(e) => setGalleryCaption(e.target.value)} className="h-10 w-full px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Caption" />
-                      <input value={galleryLocation} onChange={(e) => setGalleryLocation(e.target.value)} className="h-10 w-full px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Location text optional" />
+                  {user && user.id === profileDetail.profile.id ? (
+                    <article className="rounded-2xl border border-white/20 bg-black/20 p-4 space-y-2">
+                      <h3 className="text-base font-semibold">Add diary entry</h3>
+                      <input value={galleryImageUrl} onChange={(event) => setGalleryImageUrl(event.target.value)} placeholder="Image URL" className="field" />
+                      <input value={galleryCaption} onChange={(event) => setGalleryCaption(event.target.value)} placeholder="Caption" className="field" />
+                      <input value={galleryLocation} onChange={(event) => setGalleryLocation(event.target.value)} placeholder="Location optional" className="field" />
                       <div className="grid grid-cols-2 gap-2">
-                        <input value={galleryLat} onChange={(e) => setGalleryLat(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Lat optional" />
-                        <input value={galleryLng} onChange={(e) => setGalleryLng(e.target.value)} className="h-10 px-3 rounded-md border border-slate-300/70 dark:border-slate-700 bg-transparent" placeholder="Lng optional" />
+                        <input value={galleryLat} onChange={(event) => setGalleryLat(event.target.value)} placeholder="Lat optional" className="field" />
+                        <input value={galleryLng} onChange={(event) => setGalleryLng(event.target.value)} placeholder="Lng optional" className="field" />
                       </div>
-                      <button type="button" onClick={() => void postGalleryEntry()} className="h-10 px-4 rounded-md bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-sm font-medium">
+                      <button type="button" className="action-primary" onClick={() => void postGalleryEntry()}>
                         Add Diary Entry
                       </button>
-                    </section>
+                    </article>
                   ) : null}
 
-                  <section className="space-y-3">
-                    <h3 className="text-sm font-semibold">Reviews</h3>
-                    {profileDetail.reviews.length === 0 ? (
-                      <p className="text-sm text-slate-600 dark:text-slate-300">No reviews yet.</p>
-                    ) : (
-                      profileDetail.reviews.map((review) => (
-                        <article key={review.id} className="rounded-md border border-slate-300/70 dark:border-slate-700 p-3">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-semibold">{review.author?.displayName ?? "User"}</p>
-                            <p className="text-xs text-slate-500">{review.rating}/5</p>
-                          </div>
-                          <p className="mt-1 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                            {review.reviewType === "activity" ? `Activity review${review.activityTitle ? ` - ${review.activityTitle}` : ""}` : "Whole profile review"}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{review.comment}</p>
-                          <p className="mt-1 text-xs text-slate-500">{formatWhen(review.createdAt)}</p>
-                        </article>
-                      ))
-                    )}
-                  </section>
+                  {profileDetail.recentActivities.length > 0 ? (
+                    <article className="rounded-2xl border border-white/20 bg-black/20 p-4">
+                      <h3 className="text-base font-semibold">Recent activities</h3>
+                      <div className="mt-2 space-y-2">
+                        {profileDetail.recentActivities.slice(0, 5).map((activity) => (
+                          <button
+                            key={activity.id}
+                            type="button"
+                            onClick={() => jumpToActivity(activity.id)}
+                            className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-left hover:bg-white/12"
+                          >
+                            <p className="text-sm font-medium">{activity.title}</p>
+                            <p className="text-xs text-white/70">{activity.location} - {formatWhen(activity.whenISO)}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </article>
+                  ) : null}
 
-                  <section className="space-y-3">
-                    <h3 className="text-sm font-semibold">Photo diary</h3>
-                    {profileDetail.gallery.length === 0 ? (
-                      <p className="text-sm text-slate-600 dark:text-slate-300">No entries yet.</p>
+                  <article className="rounded-2xl border border-white/20 bg-black/20 p-4">
+                    <h3 className="text-base font-semibold">Reviews</h3>
+                    {profileDetail.reviews.length === 0 ? (
+                      <p className="mt-2 text-sm text-white/70">No reviews yet.</p>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {profileDetail.gallery.map((entry) => (
-                          <article key={entry.id} className="rounded-lg border border-slate-300/70 dark:border-slate-700 overflow-hidden bg-white/60 dark:bg-slate-900/40">
-                            <div className="relative">
-                              <img src={entry.imageUrl} alt={entry.caption} className="w-full h-44 object-cover bg-slate-100 dark:bg-slate-800" />
-                              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/15 via-transparent to-transparent"></div>
+                      <div className="mt-2 space-y-2">
+                        {profileDetail.reviews.map((review) => (
+                          <div key={review.id} className="rounded-xl border border-white/15 bg-white/5 p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-semibold">{review.author?.displayName ?? "User"}</p>
+                              <p className="text-xs text-white/65">{review.rating}/5</p>
                             </div>
-                            <div className="p-3">
-                              <p className="text-sm font-medium">{entry.caption}</p>
-                              {entry.location ? <p className="mt-1 text-xs text-slate-500">{entry.location}</p> : null}
-                              {entry.lat !== null && entry.lng !== null ? <p className="text-xs text-slate-500">{entry.lat.toFixed(5)}, {entry.lng.toFixed(5)}</p> : null}
-                              <p className="mt-1 text-xs text-slate-500">{formatWhen(entry.createdAt)}</p>
-                            </div>
-                          </article>
+                            <p className="mt-1 text-[11px] uppercase tracking-wide text-white/55">
+                              {review.reviewType === "activity"
+                                ? `Activity review${review.activityTitle ? ` - ${review.activityTitle}` : ""}`
+                                : "Whole profile review"}
+                            </p>
+                            <p className="mt-1 text-sm text-white/80">{review.comment}</p>
+                            <p className="mt-1 text-xs text-white/55">{formatWhen(review.createdAt)}</p>
+                          </div>
                         ))}
                       </div>
                     )}
-                  </section>
+                  </article>
+
+                  <article className="rounded-2xl border border-white/20 bg-black/20 p-4">
+                    <h3 className="text-base font-semibold">Photo diary</h3>
+                    {profileDetail.gallery.length === 0 ? (
+                      <p className="mt-2 text-sm text-white/70">No entries yet.</p>
+                    ) : (
+                      <div className="mt-2 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        {profileDetail.gallery.map((entry) => (
+                          <div key={entry.id} className="rounded-xl border border-white/15 bg-white/5 overflow-hidden">
+                            <div className="relative h-40 w-full">
+                              <Image
+                                src={entry.imageUrl}
+                                alt={entry.caption}
+                                fill
+                                unoptimized
+                                sizes="(max-width: 1024px) 100vw, 40vw"
+                                className="object-cover"
+                              />
+                            </div>
+                            <div className="p-3">
+                              <p className="text-sm font-medium">{entry.caption}</p>
+                              {entry.location ? <p className="text-xs text-white/65 mt-1">{entry.location}</p> : null}
+                              {entry.lat !== null && entry.lng !== null ? (
+                                <p className="text-xs text-white/55">{entry.lat.toFixed(5)}, {entry.lng.toFixed(5)}</p>
+                              ) : null}
+                              <p className="text-xs text-white/55 mt-1">{formatWhen(entry.createdAt)}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </article>
                 </div>
               )}
             </section>
-          </div>
-        </div>
+          </section>
+        )}
       </main>
 
-      <nav className="sm:hidden fixed bottom-0 inset-x-0 z-30 safe-bottom border-t border-slate-300/50 dark:border-slate-700 bg-white/88 dark:bg-slate-950/88 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 pt-2 flex items-center gap-2">
-          <button type="button" onClick={() => switchTab("map")} className={`h-11 flex-1 rounded-md text-sm font-medium border ${tab === "map" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
-            Map
-          </button>
-          <button type="button" onClick={() => switchTab("profiles")} className={`h-11 flex-1 rounded-md text-sm font-medium border ${tab === "profiles" ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent" : "border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900"}`}>
-            Profiles
-          </button>
-          {installPromptEvent ? (
-            <button type="button" onClick={() => void installApp()} className="h-11 px-3 rounded-md text-sm font-medium border border-slate-300/70 dark:border-slate-700 bg-white/90 dark:bg-slate-900">
-              Install
-            </button>
-          ) : null}
-        </div>
-      </nav>
-
       {toast ? (
-        <div className="fixed bottom-20 sm:bottom-4 left-1/2 -translate-x-1/2 z-40">
-          <div className="max-w-[92vw] rounded-lg border border-slate-300/70 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2.5 shadow-lg text-sm flex items-center gap-3">
-            <span>{toast}</span>
-            <button type="button" onClick={() => setToast(null)} className="ml-auto text-slate-500 hover:text-slate-900 dark:hover:text-white">
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M18 6 6 18"></path>
-                <path d="m6 6 12 12"></path>
-              </svg>
-            </button>
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2">
+          <div className={`rounded-full px-4 py-2 text-sm font-medium shadow-lg ${toast.tone === "error" ? "bg-rose-500 text-white" : "bg-emerald-500 text-white"}`}>
+            {toast.message}
           </div>
         </div>
       ) : null}
