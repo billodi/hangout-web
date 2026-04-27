@@ -41,10 +41,6 @@ export default function AdminApp() {
   const [activeTab, setActiveTab] = useState<"overview" | "users" | "activities">("overview");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  useEffect(() => {
-    void loadAdminData();
-  }, []);
-
   async function loadAdminData() {
     try {
       setLoading(true);
@@ -92,6 +88,16 @@ export default function AdminApp() {
       year: "numeric",
     });
   }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadAdminData();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, []);
 
   if (loading) {
     return (

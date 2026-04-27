@@ -67,6 +67,8 @@ export async function POST(req: Request) {
       displayName: users.displayName,
       bio: users.bio,
       avatarUrl: users.avatarUrl,
+      isAdmin: users.isAdmin,
+      role: users.role,
       createdAt: users.createdAt,
     });
 

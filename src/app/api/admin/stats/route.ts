@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 import { getDb } from "@/db";
 import { activityParticipants, activities, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { eq, sql } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 
 export async function GET() {
   const currentUser = await getCurrentUser();
@@ -58,12 +58,13 @@ export async function GET() {
 
   // Get creator names for activities
   const creatorIds = [...new Set(recentActivities.map(a => a.creatorId).filter(Boolean))];
-  const creatorRows = creatorIds.length > 0
-    ? await db
-        .select({ id: users.id, displayName: users.displayName })
-        .from(users)
-        .where(sql`${users.id} IN (${creatorIds.map(() => '?').join(',')})`)
-    : [];
+  let creatorRows: { id: string; displayName: string }[] = [];
+  if (creatorIds.length > 0) {
+    creatorRows = await db
+      .select({ id: users.id, displayName: users.displayName })
+      .from(users)
+      .where(inArray(users.id, creatorIds));
+  }
   const creatorMap = new Map(creatorRows.map(c => [c.id, c.displayName]));
 
   const activitiesWithCreator = recentActivities.map(a => ({

@@ -237,6 +237,8 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/profiles/[id]"
       displayName: users.displayName,
       bio: users.bio,
       avatarUrl: users.avatarUrl,
+      isAdmin: users.isAdmin,
+      role: users.role,
       createdAt: users.createdAt,
     });
 

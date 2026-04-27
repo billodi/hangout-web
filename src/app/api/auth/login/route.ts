@@ -55,6 +55,8 @@ export async function POST(req: Request) {
       displayName: found.displayName,
       bio: found.bio,
       avatarUrl: found.avatarUrl,
+      isAdmin: found.isAdmin,
+      role: found.role,
       createdAt: found.createdAt,
     },
   });

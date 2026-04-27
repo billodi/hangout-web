@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   }
 
   // Only owners can modify admins
-  if (currentUser.role !== "owner") {
+  if (currentUser.role !== "owner" && userId) {
     const [targetUser] = await db
       .select({ role: users.role })
       .from(users)
