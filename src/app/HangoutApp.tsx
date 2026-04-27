@@ -261,17 +261,22 @@ export default function HangoutApp({
   initialActivities,
   initialBackendOk,
   initialUser,
+  lockedView,
+  preferredActivityId,
 }: {
   initialActivities: Activity[];
   initialBackendOk: boolean;
   initialUser: User | null;
+  lockedView?: "map" | "profiles";
+  preferredActivityId?: string | null;
 }) {
   const [activities, setActivities] = useState<Activity[]>(initialActivities);
   const [backendOk] = useState(initialBackendOk);
   const [user, setUser] = useState<User | null>(initialUser);
   const userId = user?.id ?? null;
 
-  const [activeView, setActiveView] = useState<"map" | "profiles">("map");
+  const [activeViewState, setActiveViewState] = useState<"map" | "profiles">("map");
+  const activeView = lockedView ?? activeViewState;
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [toast, setToast] = useState<{ tone: ToastTone; message: string } | null>(null);
   const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
@@ -280,7 +285,7 @@ export default function HangoutApp({
   const [filterType, setFilterType] = useState<"all" | ActivityType>("all");
   const [sortBy, setSortBy] = useState<"soonest" | "newest">("soonest");
   const [onlyOpen, setOnlyOpen] = useState(false);
-  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(initialActivities[0]?.id ?? null);
+  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(preferredActivityId ?? initialActivities[0]?.id ?? null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -383,6 +388,7 @@ export default function HangoutApp({
   const selectedTypeMeta = selectedActivity ? TYPE_META[selectedActivity.type] : null;
   const isSelectedActivityOwner = !!(selectedActivity && userId && selectedActivity.creatorId === userId);
   const communitySeparated = true;
+  const routeSeparatedMode = !!lockedView;
 
   function invalidateMapSoon(delays: number[] = [60, 180, 420]) {
     for (const delay of delays) {
@@ -1117,7 +1123,11 @@ export default function HangoutApp({
   }
 
   function jumpToActivity(activityId: string) {
-    setActiveView("map");
+    if (routeSeparatedMode) {
+      window.location.href = `/map?activity=${encodeURIComponent(activityId)}`;
+      return;
+    }
+    setActiveViewState("map");
     setSelectedActivityId(activityId);
     if (isMobileViewport()) {
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1157,20 +1167,14 @@ export default function HangoutApp({
           </div>
 
           <div className="mt-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-            <button
-              type="button"
-              onClick={() => setActiveView("map")}
-              className={`tab-chip ${activeView === "map" ? "tab-chip-active" : ""}`}
-            >
+            <Link href="/map" className={`tab-chip ${activeView === "map" ? "tab-chip-active" : ""}`}>
               Live Map
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveView("profiles")}
-              className={`tab-chip ${activeView === "profiles" ? "tab-chip-active" : ""}`}
-            >
+            </Link>
+            <Link href="/community" className={`tab-chip ${activeView === "profiles" ? "tab-chip-active" : ""}`}>
               Community
-            </button>
+            </Link>
+            <Link href="/profile" className="tab-chip">Profile</Link>
+            <Link href="/reviews" className="tab-chip">Reviews</Link>
             {installPromptEvent ? (
               <button type="button" className="tab-chip ml-auto" onClick={() => void installApp()}>
                 Install App
@@ -1583,7 +1587,7 @@ export default function HangoutApp({
                     </div>
                   </article>
 
-                  {user && user.id === profileDetail.profile.id && !communitySeparated ? (
+                  {user && user.id === profileDetail.profile.id && !communitySeparated && !routeSeparatedMode ? (
                     <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4 space-y-2">
                       <h3 className="text-base font-semibold">Edit profile</h3>
                       <input value={editName} onChange={(event) => setEditName(event.target.value)} placeholder="Display name" className="field" />
@@ -1605,7 +1609,7 @@ export default function HangoutApp({
                     </article>
                   ) : null}
 
-                  {user && user.id !== profileDetail.profile.id && !communitySeparated ? (
+                  {user && user.id !== profileDetail.profile.id && !communitySeparated && !routeSeparatedMode ? (
                     <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4 space-y-2">
                       <h3 className="text-base font-semibold">Write review</h3>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -1666,7 +1670,7 @@ export default function HangoutApp({
                     </article>
                   ) : null}
 
-                  {user && user.id === profileDetail.profile.id && !communitySeparated ? (
+                  {user && user.id === profileDetail.profile.id && !communitySeparated && !routeSeparatedMode ? (
                     <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4 space-y-2">
                       <h3 className="text-base font-semibold">Add diary entry</h3>
                       <input value={galleryImageUrl} onChange={(event) => setGalleryImageUrl(event.target.value)} placeholder="Image URL" className="field" />
