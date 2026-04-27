@@ -469,6 +469,16 @@ export default function HangoutApp({
       const L = await loadLeaflet();
       if (cancelled) return;
 
+      // If the map container was unmounted while switching tabs, discard stale instance.
+      if (mapRef.current) {
+        const connected = mapRef.current.getContainer()?.isConnected ?? false;
+        if (!connected) {
+          mapRef.current.remove();
+          mapRef.current = null;
+          markersLayerRef.current = null;
+        }
+      }
+
       if (!mapRef.current && mapElRef.current) {
         const map = L.map(mapElRef.current, {
           center: [24.7136, 46.6753],
@@ -516,7 +526,14 @@ export default function HangoutApp({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activeView]);
+
+  useEffect(() => {
+    if (activeView !== "map") return;
+    const map = mapRef.current;
+    if (!map) return;
+    window.setTimeout(() => map.invalidateSize(), 120);
+  }, [activeView]);
 
   useEffect(() => {
     const map = mapRef.current;
