@@ -1716,10 +1716,6 @@ function selectPinResult(result: NominatimResult) {
                     ))}
                   </div>
                 ) : null}
-                <div className="grid grid-cols-2 gap-1.5 lg:gap-2">
-                  <input value={pinLat} onChange={(event) => setPinLat(event.target.value)} placeholder="Lat" className="field" />
-                  <input value={pinLng} onChange={(event) => setPinLng(event.target.value)} placeholder="Lng" className="field" />
-                </div>
                 <div ref={pickerMapElRef} className="h-40 sm:h-48 rounded-2xl border border-white/20 overflow-hidden" />
               </div>
               <button type="button" className="action-primary w-full" onClick={() => void createActivity()}>
@@ -1787,10 +1783,6 @@ function selectPinResult(result: NominatimResult) {
                   <option value="help">Help</option>
                 </select>
                 <input value={editActivityLimit} onChange={(event) => setEditActivityLimit(event.target.value)} placeholder="Limit optional" className="field" />
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                <input value={editActivityLat} onChange={(event) => setEditActivityLat(event.target.value)} placeholder="Lat" className="field" />
-                <input value={editActivityLng} onChange={(event) => setEditActivityLng(event.target.value)} placeholder="Lng" className="field" />
               </div>
               <div className="grid grid-cols-2 gap-1.5">
                 <button type="button" className="action-primary" onClick={() => void saveActivityEdits()}>

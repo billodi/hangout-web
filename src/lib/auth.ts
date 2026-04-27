@@ -3,8 +3,7 @@ import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { getDb } from "@/db";
 import { sessions, users } from "@/db/schema";
-
-const SESSION_COOKIE = "hangout_session";
+import { SESSION_COOKIE } from "@/lib/cookieNames";
 const SESSION_TTL_DAYS = 30;
 
 function toHex(bytes: Buffer): string {
