@@ -45,6 +45,9 @@ type ProfileSummary = {
   displayName: string;
   bio: string;
   avatarUrl: string | null;
+  isAdmin: number;
+  role: string;
+  visibleRole: "owner" | "admin" | "moderator" | null;
   createdAt: string;
   createdCount: number;
   joinedCount: number;
@@ -61,6 +64,9 @@ type ProfileDetail = {
     displayName: string;
     bio: string;
     avatarUrl: string | null;
+    isAdmin: number;
+    role: string;
+    visibleRole: "owner" | "admin" | "moderator" | null;
     createdAt: string;
   };
   stats: {
@@ -192,6 +198,20 @@ function isValidImageUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+function roleBadgeClass(role: "owner" | "admin" | "moderator" | null): string {
+  if (role === "owner") return "border-fuchsia-300/50 bg-fuchsia-500/20 text-fuchsia-200";
+  if (role === "admin") return "border-rose-300/50 bg-rose-500/20 text-rose-200";
+  if (role === "moderator") return "border-amber-300/50 bg-amber-500/20 text-amber-200";
+  return "border-white/20 bg-white/10 text-white/80";
+}
+
+function roleBadgeLabel(role: "owner" | "admin" | "moderator" | null): string {
+  if (role === "owner") return "Owner";
+  if (role === "admin") return "Admin";
+  if (role === "moderator") return "Moderator";
+  return "";
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -1464,7 +1484,14 @@ function selectPinResult(result: NominatimResult) {
                     <div className="flex items-center gap-2">
                       <Avatar name={profile.displayName} avatarUrl={profile.avatarUrl} size="sm" />
                       <div className="min-w-0">
-                        <p className="truncate font-semibold text-sm">{profile.displayName}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="truncate font-semibold text-sm">{profile.displayName}</p>
+                          {profile.visibleRole ? (
+                            <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${roleBadgeClass(profile.visibleRole)}`}>
+                              {roleBadgeLabel(profile.visibleRole)}
+                            </span>
+                          ) : null}
+                        </div>
                         <p className="truncate text-xs text-white/65">
                           {profile.avgRating !== null ? `${profile.avgRating.toFixed(1)} stars` : "No rating"} - {profile.reviewCount} reviews
                         </p>
@@ -1494,7 +1521,14 @@ function selectPinResult(result: NominatimResult) {
                       <div className="flex items-center gap-3">
                         <Avatar name={profileDetail.profile.displayName} avatarUrl={profileDetail.profile.avatarUrl} />
                         <div>
-                          <h2 className="text-xl font-semibold">{profileDetail.profile.displayName}</h2>
+                          <div className="flex items-center gap-2">
+                            <h2 className="text-xl font-semibold">{profileDetail.profile.displayName}</h2>
+                            {profileDetail.profile.visibleRole ? (
+                              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${roleBadgeClass(profileDetail.profile.visibleRole)}`}>
+                                {roleBadgeLabel(profileDetail.profile.visibleRole)}
+                              </span>
+                            ) : null}
+                          </div>
                           <p className="text-sm text-white/70">{profileDetail.profile.bio || "No bio yet."}</p>
                         </div>
                       </div>

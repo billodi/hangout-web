@@ -7,14 +7,31 @@ import { getCurrentUser } from "@/lib/auth";
 import { computeBadges } from "@/lib/badges";
 import { sql } from "drizzle-orm";
 
+type VisibleRole = "owner" | "admin" | "moderator" | null;
+
 function toNumber(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 }
 
+function getVisibleRoleForViewer(
+  targetRole: string,
+  targetIsAdmin: number,
+  viewerRole: string | null,
+  isCurrentUser: boolean,
+): VisibleRole {
+  if (targetRole === "owner") return "owner";
+  if (targetRole === "admin" || targetIsAdmin === 1) return "admin";
+  if (targetRole === "moderator" && (isCurrentUser || viewerRole === "admin" || viewerRole === "owner")) {
+    return "moderator";
+  }
+  return null;
+}
+
 export async function GET() {
   const db = getDb();
   const currentUser = await getCurrentUser();
+  const viewerRole = currentUser?.role ?? null;
 
   const allUsers = await db
     .select({
@@ -22,10 +39,11 @@ export async function GET() {
       displayName: users.displayName,
       bio: users.bio,
       avatarUrl: users.avatarUrl,
+      isAdmin: users.isAdmin,
+      role: users.role,
       createdAt: users.createdAt,
     })
-    .from(users)
-    .where(sql`${users.isAdmin} = 0`);
+    .from(users);
 
   const createdRows = await db
     .select({
@@ -69,6 +87,7 @@ export async function GET() {
   const reviewMap = new Map(reviewRows.map((row) => [row.userId, { count: toNumber(row.count), avg: toNumber(row.avg) }]));
 
   const items = allUsers.map((user) => {
+    const isCurrentUser = currentUser?.id === user.id;
     const createdCount = createdMap.get(user.id) ?? 0;
     const joinedCount = joinedMap.get(user.id) ?? 0;
     const diaryCount = diaryMap.get(user.id) ?? 0;
@@ -90,7 +109,8 @@ export async function GET() {
       reviewCount: review.count,
       avgRating,
       badges,
-      isCurrentUser: currentUser?.id === user.id,
+      isCurrentUser,
+      visibleRole: getVisibleRoleForViewer(user.role, user.isAdmin, viewerRole, isCurrentUser),
     };
   });
 
