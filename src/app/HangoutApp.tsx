@@ -198,6 +198,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...options,
     headers,
+    credentials: "include",
     cache: options?.cache ?? "no-store",
   });
   const text = await response.text();
