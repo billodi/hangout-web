@@ -70,6 +70,8 @@ export type AuthedUser = {
   displayName: string;
   bio: string;
   avatarUrl: string | null;
+  isAdmin: number;
+  role: string;
   createdAt: string;
 };
 
@@ -88,6 +90,8 @@ export async function getCurrentUser(): Promise<AuthedUser | null> {
       displayName: users.displayName,
       bio: users.bio,
       avatarUrl: users.avatarUrl,
+      isAdmin: users.isAdmin,
+      role: users.role,
       createdAt: users.createdAt,
     })
     .from(sessions)
@@ -102,6 +106,8 @@ export async function getCurrentUser(): Promise<AuthedUser | null> {
     displayName: row.displayName,
     bio: row.bio,
     avatarUrl: row.avatarUrl,
+    isAdmin: row.isAdmin,
+    role: row.role,
     createdAt: row.createdAt,
   };
 }

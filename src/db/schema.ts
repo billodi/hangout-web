@@ -10,6 +10,7 @@ export const users = pgTable("users", {
   bio: text("bio").notNull().default(""),
   avatarUrl: text("avatar_url"),
   isAdmin: integer("is_admin").notNull().default(0),
+  role: text("role").notNull().default("user"), // 'user' | 'moderator' | 'admin' | 'owner' - invisible to others
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
 });
 
