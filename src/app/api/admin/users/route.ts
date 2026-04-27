@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   const { action, userId, role } = body;
 
   // Prevent self-modification
-  if (userId === currentUser.id) {
+  if (userId && userId === currentUser.id) {
     return Response.json({ error: "Cannot modify your own account" }, { status: 400 });
   }
 
@@ -45,6 +45,9 @@ export async function POST(req: Request) {
 
   switch (action) {
     case "ban": {
+      if (!userId) {
+        return Response.json({ error: "userId is required" }, { status: 400 });
+      }
       // Set role to 'banned' (invisible role)
       await db
         .update(users)
@@ -54,6 +57,9 @@ export async function POST(req: Request) {
     }
 
     case "unban": {
+      if (!userId) {
+        return Response.json({ error: "userId is required" }, { status: 400 });
+      }
       await db
         .update(users)
         .set({ role: "user" })
@@ -62,6 +68,9 @@ export async function POST(req: Request) {
     }
 
     case "set_role": {
+      if (!userId) {
+        return Response.json({ error: "userId is required" }, { status: 400 });
+      }
       if (!role || !["user", "moderator", "admin", "owner"].includes(role)) {
         return Response.json({ error: "Invalid role" }, { status: 400 });
       }
@@ -82,6 +91,9 @@ export async function POST(req: Request) {
     }
 
     case "delete": {
+      if (!userId) {
+        return Response.json({ error: "userId is required" }, { status: 400 });
+      }
       // Hard delete user and all their data
       await db.delete(users).where(eq(users.id, userId));
       return Response.json({ success: true, message: "User deleted" });

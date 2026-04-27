@@ -57,7 +57,9 @@ export async function GET() {
     .limit(20);
 
   // Get creator names for activities
-  const creatorIds = [...new Set(recentActivities.map(a => a.creatorId).filter(Boolean))];
+  const creatorIds = [
+    ...new Set(recentActivities.map((a) => a.creatorId).filter((id): id is string => typeof id === "string")),
+  ];
   let creatorRows: { id: string; displayName: string }[] = [];
   if (creatorIds.length > 0) {
     creatorRows = await db
