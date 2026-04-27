@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type ActivityType = "chill" | "active" | "help";
@@ -381,6 +382,7 @@ export default function HangoutApp({
 
   const selectedTypeMeta = selectedActivity ? TYPE_META[selectedActivity.type] : null;
   const isSelectedActivityOwner = !!(selectedActivity && userId && selectedActivity.creatorId === userId);
+  const communitySeparated = true;
 
   useEffect(() => {
     const timer = window.setInterval(() => setNowTick(Date.now()), 30_000);
@@ -1508,6 +1510,23 @@ export default function HangoutApp({
                 <p className="text-sm text-white/70">Select a profile.</p>
               ) : (
                 <div className="space-y-3 lg:space-y-4">
+                  {communitySeparated ? (
+                    <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4 space-y-2">
+                      <h3 className="text-base font-semibold">Account Tools</h3>
+                      <p className="text-sm text-white/70">
+                        Profile editing and reviews now live in dedicated pages so community browsing stays clean.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <Link href="/profile" className="action-primary">
+                          Open Profile Page
+                        </Link>
+                        <Link href="/reviews" className="action-ghost">
+                          Open Reviews Page
+                        </Link>
+                      </div>
+                    </article>
+                  ) : null}
+
                   <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4">
                     <div className="flex flex-col gap-3 lg:gap-4 lg:flex-row lg:items-center lg:justify-between">
                       <div className="flex items-center gap-3">
@@ -1536,7 +1555,7 @@ export default function HangoutApp({
                     </div>
                   </article>
 
-                  {user && user.id === profileDetail.profile.id ? (
+                  {user && user.id === profileDetail.profile.id && !communitySeparated ? (
                     <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4 space-y-2">
                       <h3 className="text-base font-semibold">Edit profile</h3>
                       <input value={editName} onChange={(event) => setEditName(event.target.value)} placeholder="Display name" className="field" />
@@ -1558,7 +1577,7 @@ export default function HangoutApp({
                     </article>
                   ) : null}
 
-                  {user && user.id !== profileDetail.profile.id ? (
+                  {user && user.id !== profileDetail.profile.id && !communitySeparated ? (
                     <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4 space-y-2">
                       <h3 className="text-base font-semibold">Write review</h3>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -1619,7 +1638,7 @@ export default function HangoutApp({
                     </article>
                   ) : null}
 
-                  {user && user.id === profileDetail.profile.id ? (
+                  {user && user.id === profileDetail.profile.id && !communitySeparated ? (
                     <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4 space-y-2">
                       <h3 className="text-base font-semibold">Add diary entry</h3>
                       <input value={galleryImageUrl} onChange={(event) => setGalleryImageUrl(event.target.value)} placeholder="Image URL" className="field" />
@@ -1654,30 +1673,32 @@ export default function HangoutApp({
                     </article>
                   ) : null}
 
+                  {!communitySeparated ? (
                     <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4">
-                    <h3 className="text-base font-semibold">Reviews</h3>
-                    {profileDetail.reviews.length === 0 ? (
-                      <p className="mt-2 text-sm text-white/70">No reviews yet.</p>
-                    ) : (
-                      <div className="mt-2 space-y-2">
-                        {profileDetail.reviews.map((review) => (
-                          <div key={review.id} className="rounded-xl border border-white/15 bg-white/5 p-3">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-sm font-semibold">{review.author?.displayName ?? "User"}</p>
-                              <p className="text-xs text-white/65">{review.rating}/5</p>
+                      <h3 className="text-base font-semibold">Reviews</h3>
+                      {profileDetail.reviews.length === 0 ? (
+                        <p className="mt-2 text-sm text-white/70">No reviews yet.</p>
+                      ) : (
+                        <div className="mt-2 space-y-2">
+                          {profileDetail.reviews.map((review) => (
+                            <div key={review.id} className="rounded-xl border border-white/15 bg-white/5 p-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-sm font-semibold">{review.author?.displayName ?? "User"}</p>
+                                <p className="text-xs text-white/65">{review.rating}/5</p>
+                              </div>
+                              <p className="mt-1 text-[11px] uppercase tracking-wide text-white/55">
+                                {review.reviewType === "activity"
+                                  ? `Activity review${review.activityTitle ? ` - ${review.activityTitle}` : ""}`
+                                  : "Whole profile review"}
+                              </p>
+                              <p className="mt-1 text-sm text-white/80">{review.comment}</p>
+                              <p className="mt-1 text-xs text-white/55">{formatWhen(review.createdAt)}</p>
                             </div>
-                            <p className="mt-1 text-[11px] uppercase tracking-wide text-white/55">
-                              {review.reviewType === "activity"
-                                ? `Activity review${review.activityTitle ? ` - ${review.activityTitle}` : ""}`
-                                : "Whole profile review"}
-                            </p>
-                            <p className="mt-1 text-sm text-white/80">{review.comment}</p>
-                            <p className="mt-1 text-xs text-white/55">{formatWhen(review.createdAt)}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </article>
+                          ))}
+                        </div>
+                      )}
+                    </article>
+                  ) : null}
 
                     <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4">
                     <h3 className="text-base font-semibold">Photo diary</h3>
