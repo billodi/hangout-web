@@ -162,7 +162,7 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
         <section className="shell-panel p-4">
           <h1 className="text-xl font-semibold">Profile Page</h1>
           <p className="mt-2 text-sm text-white/75">Please sign in first to manage your profile.</p>
-          <Link href="/" className="action-primary inline-flex mt-3">Go Home</Link>
+          <Link href="/map" className="action-primary inline-flex mt-3">Go Home</Link>
         </section>
       </main>
     );
@@ -174,7 +174,7 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-xl lg:text-2xl font-semibold">My Profile</h1>
           <div className="flex gap-2">
-            <Link href="/" className="action-ghost">Home</Link>
+            <Link href="/map" className="action-ghost">Home</Link>
             <Link href="/reviews" className="action-ghost">Reviews</Link>
           </div>
         </div>

@@ -161,7 +161,7 @@ export default function ReviewsApp({ initialUser }: { initialUser: User | null }
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-xl lg:text-2xl font-semibold">Reviews</h1>
           <div className="flex gap-2">
-            <Link href="/" className="action-ghost">Home</Link>
+            <Link href="/map" className="action-ghost">Home</Link>
             <Link href="/profile" className="action-ghost">My Profile</Link>
           </div>
         </div>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -181,7 +181,7 @@ export default function AdminApp() {
             </div>
             <div className="shell-panel p-4">
               <p className="text-xs text-white/50 uppercase tracking-wider">Active Now</p>
-              <p className="mt-1 text-3xl font-bold text-teal-400">●</p>
+              <p className="mt-1 text-3xl font-bold text-teal-400">•</p>
             </div>
           </div>
         )}
@@ -308,3 +308,4 @@ export default function AdminApp() {
     </div>
   );
 }
+
