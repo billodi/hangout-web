@@ -298,6 +298,7 @@ export default function HangoutApp({
 
   const [activeViewState, setActiveViewState] = useState<"map" | "profiles">("map");
   const activeView = lockedView ?? activeViewState;
+  const [isMobile, setIsMobile] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [toast, setToast] = useState<{ tone: ToastTone; message: string } | null>(null);
   const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
@@ -424,6 +425,14 @@ export default function HangoutApp({
   useEffect(() => {
     const timer = window.setInterval(() => setNowTick(Date.now()), 30_000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
   }, []);
 
   useEffect(() => {
@@ -1199,7 +1208,7 @@ function selectPinResult(result: NominatimResult) {
   }
 
   return (
-    <div className="min-h-dvh text-white pb-12 lg:pb-8">
+    <div className="min-h-dvh text-white pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-8">
       <div className="aurora aurora-a" />
       <div className="aurora aurora-b" />
 
@@ -1252,6 +1261,17 @@ function selectPinResult(result: NominatimResult) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
               Community
+            </Link>
+            <Link href="/profile" className="tab-chip group">
+              <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              Me
             </Link>
             {installPromptEvent ? (
               <button type="button" className="tab-chip ml-auto btn-glow" onClick={() => void installApp()}>
@@ -1345,6 +1365,14 @@ function selectPinResult(result: NominatimResult) {
                         <p className="font-semibold">{user.displayName}</p>
                         <p className="text-xs text-white/70">{user.email}</p>
                       </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <Link href="/profile" className="action-ghost text-center">
+                        Edit profile
+                      </Link>
+                      <button type="button" className="action-ghost" onClick={() => void refreshActivities()}>
+                        Refresh feed
+                      </button>
                     </div>
                   </div>
                 ) : (
@@ -1731,6 +1759,66 @@ function selectPinResult(result: NominatimResult) {
           </section>
         )}
       </main>
+
+      {isMobile ? (
+        <>
+          {activeView === "map" && backendOk ? (
+            <button
+              type="button"
+              onClick={() => setShowCreateModal(true)}
+              className="fixed bottom-[calc(4.25rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 rounded-full border border-orange-300/40 bg-gradient-to-b from-orange-500 to-orange-700 px-5 py-3 text-sm font-semibold shadow-[0_18px_40px_-18px_rgba(251,146,60,0.9)]"
+            >
+              + Create
+            </button>
+          ) : null}
+
+          <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/15 bg-black/55 backdrop-blur-xl">
+            <div className="mx-auto flex max-w-[1500px] items-center justify-around px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">
+              <Link
+                href="/map"
+                className={`flex flex-col items-center gap-1 text-[11px] font-medium ${
+                  activeView === "map" ? "text-orange-200" : "text-white/75"
+                }`}
+              >
+                <span className="grid h-9 w-9 place-items-center rounded-2xl border border-white/15 bg-white/5">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0121 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                  </svg>
+                </span>
+                Map
+              </Link>
+
+              <Link
+                href="/community"
+                className={`flex flex-col items-center gap-1 text-[11px] font-medium ${
+                  activeView === "profiles" ? "text-orange-200" : "text-white/75"
+                }`}
+              >
+                <span className="grid h-9 w-9 place-items-center rounded-2xl border border-white/15 bg-white/5">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </span>
+                People
+              </Link>
+
+              <Link href="/profile" className="flex flex-col items-center gap-1 text-[11px] font-medium text-white/75">
+                <span className="grid h-9 w-9 place-items-center rounded-2xl border border-white/15 bg-white/5">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </span>
+                Me
+              </Link>
+            </div>
+          </nav>
+        </>
+      ) : null}
 
       {showCreateModal ? (
         <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm p-3 lg:p-6 flex items-center justify-center" onClick={() => setShowCreateModal(false)}>
