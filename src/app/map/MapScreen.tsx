@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 
 import Button from "@/components/ui/Button";
@@ -92,10 +92,6 @@ function isClosedByWhen(whenISO: string, nowTick: number): boolean {
   return Number.isFinite(ts) && ts <= nowTick;
 }
 
-function isMobileViewport(): boolean {
-  return window.matchMedia("(max-width: 1023px)").matches;
-}
-
 function loadLeaflet(): Promise<LeafletModule> {
   if (!leafletLoader) leafletLoader = import("leaflet");
   return leafletLoader;
@@ -157,6 +153,8 @@ export default function MapScreen({
   const [showCreate, setShowCreate] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  /** Single map container must exist — do not mount desktop+mobile layouts at once or `mapElRef` breaks. */
+  const [useDesktopLayout, setUseDesktopLayout] = useState(false);
 
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [authName, setAuthName] = useState("");
@@ -181,6 +179,8 @@ export default function MapScreen({
   const pickerMapRef = useRef<LeafletMap | null>(null);
   const pickerMarkerRef = useRef<LeafletCircleMarker | null>(null);
   const markersLayerRef = useRef<LeafletLayerGroup | null>(null);
+  /** Bumped after main map instance is created so marker/pan effects re-run when map was briefly null. */
+  const [mapEpoch, setMapEpoch] = useState(0);
 
   const filteredActivities = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -224,9 +224,13 @@ export default function MapScreen({
     })();
   }, []);
 
-  useEffect(() => {
-    if (selectedActivityId && isMobileViewport()) setMobileSheetOpen(true);
-  }, [selectedActivityId]);
+  useLayoutEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const apply = () => setUseDesktopLayout(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
 
   function invalidateMapSoon(delays: number[] = [0, 120, 260]) {
     for (const delay of delays) {
@@ -236,62 +240,92 @@ export default function MapScreen({
 
   useEffect(() => {
     let cancelled = false;
+
     void (async () => {
       const L = await loadLeaflet();
-      if (cancelled) return;
+      if (cancelled || !mapElRef.current) return;
 
       if (mapRef.current) {
-        const connected = mapRef.current.getContainer()?.isConnected ?? false;
-        if (!connected) {
-          mapRef.current.remove();
-          mapRef.current = null;
-          markersLayerRef.current = null;
-        }
+        mapRef.current.remove();
+        mapRef.current = null;
+        markersLayerRef.current = null;
       }
 
-      if (!mapRef.current && mapElRef.current) {
-        const map = L.map(mapElRef.current, { center: [24.7136, 46.6753], zoom: 5, zoomControl: true });
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
-        mapRef.current = map;
-        markersLayerRef.current = L.layerGroup().addTo(map);
-        invalidateMapSoon();
-      }
-
-      if (pickerMapRef.current) {
-        const connected = pickerMapRef.current.getContainer()?.isConnected ?? false;
-        if (!connected) {
-          pickerMapRef.current.remove();
-          pickerMapRef.current = null;
-          pickerMarkerRef.current = null;
-        }
-      }
-
-      if (!pickerMapRef.current && pickerMapElRef.current) {
-        const pickerMap = L.map(pickerMapElRef.current, { center: [24.7136, 46.6753], zoom: 5, zoomControl: true });
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap contributors" }).addTo(pickerMap);
-        pickerMap.on("click", (event) => {
-          const latNum = event.latlng.lat;
-          const lngNum = event.latlng.lng;
-          setPinLat(latNum.toFixed(6));
-          setPinLng(lngNum.toFixed(6));
-          if (pickerMarkerRef.current) pickerMarkerRef.current.remove();
-          pickerMarkerRef.current = L.circleMarker([latNum, lngNum], {
-            radius: 8,
-            color: "#0f172a",
-            fillColor: "var(--accent)",
-            fillOpacity: 0.95,
-            weight: 2,
-          }).addTo(pickerMap);
-        });
-        pickerMapRef.current = pickerMap;
-        window.setTimeout(() => pickerMap.invalidateSize(), 80);
-      }
+      const map = L.map(mapElRef.current, { center: [24.7136, 46.6753], zoom: 5, zoomControl: true });
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
+      mapRef.current = map;
+      markersLayerRef.current = L.layerGroup().addTo(map);
+      invalidateMapSoon();
+      if (!cancelled) setMapEpoch((e) => e + 1);
     })();
 
     return () => {
       cancelled = true;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        markersLayerRef.current = null;
+      }
+    };
+  }, [useDesktopLayout]);
+
+  useEffect(() => {
+    if (!showCreate) {
+      if (pickerMapRef.current) {
+        pickerMapRef.current.remove();
+        pickerMapRef.current = null;
+        pickerMarkerRef.current = null;
+      }
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      const L = await loadLeaflet();
+      if (cancelled || !pickerMapElRef.current) return;
+
+      if (pickerMapRef.current) {
+        pickerMapRef.current.remove();
+        pickerMapRef.current = null;
+        pickerMarkerRef.current = null;
+      }
+
+      const pickerMap = L.map(pickerMapElRef.current, { center: [24.7136, 46.6753], zoom: 5, zoomControl: true });
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap contributors" }).addTo(pickerMap);
+      pickerMap.on("click", (event) => {
+        const latNum = event.latlng.lat;
+        const lngNum = event.latlng.lng;
+        setPinLat(latNum.toFixed(6));
+        setPinLng(lngNum.toFixed(6));
+        if (pickerMarkerRef.current) pickerMarkerRef.current.remove();
+        pickerMarkerRef.current = L.circleMarker([latNum, lngNum], {
+          radius: 8,
+          color: "#0f172a",
+          fillColor: "var(--accent)",
+          fillOpacity: 0.95,
+          weight: 2,
+        }).addTo(pickerMap);
+      });
+      pickerMapRef.current = pickerMap;
+      window.setTimeout(() => pickerMap.invalidateSize(), 80);
+    })();
+
+    return () => {
+      cancelled = true;
+      if (pickerMapRef.current) {
+        pickerMapRef.current.remove();
+        pickerMapRef.current = null;
+        pickerMarkerRef.current = null;
+      }
     };
   }, [showCreate]);
+
+  useEffect(() => {
+    const onResize = () => invalidateMapSoon([0, 120]);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -310,7 +344,12 @@ export default function MapScreen({
           fillOpacity: 0.95,
           weight: 2,
         });
-        marker.on("click", () => setSelectedActivityId(activity.id));
+        marker.on("click", () => {
+          setSelectedActivityId(activity.id);
+          if (typeof window !== "undefined" && !window.matchMedia("(min-width: 1024px)").matches) {
+            setMobileSheetOpen(true);
+          }
+        });
         marker.bindTooltip(activity.title, { direction: "top" });
         marker.addTo(layer);
         boundsPoints.push([activity.lat, activity.lng]);
@@ -321,13 +360,13 @@ export default function MapScreen({
         if (map.getZoom() > 14) map.setZoom(14);
       }
     })();
-  }, [filteredActivities, selectedActivityId]);
+  }, [filteredActivities, selectedActivityId, mapEpoch]);
 
   useEffect(() => {
     if (!selectedActivity || !mapRef.current) return;
     if (typeof selectedActivity.lat !== "number" || typeof selectedActivity.lng !== "number") return;
     mapRef.current.panTo([selectedActivity.lat, selectedActivity.lng]);
-  }, [selectedActivity]);
+  }, [selectedActivity, mapEpoch]);
 
   useEffect(() => {
     const pullLatest = () => {
@@ -808,8 +847,7 @@ export default function MapScreen({
         </div>
       ) : null}
 
-      <div className="hidden lg:block">{desktopPanels}</div>
-      <div className="lg:hidden">{mobile}</div>
+      {useDesktopLayout ? desktopPanels : mobile}
 
       <Modal open={showCreate} title="Create activity" onClose={() => setShowCreate(false)} size="lg">
         <div className="space-y-3">

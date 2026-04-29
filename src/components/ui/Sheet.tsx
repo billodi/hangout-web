@@ -48,6 +48,9 @@ export default function Sheet({
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
+      onPointerDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
       role="presentation"
     >
       <div
