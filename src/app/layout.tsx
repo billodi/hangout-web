@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Sora, Space_Grotesk } from "next/font/google";
 import PwaRegister from "@/components/PwaRegister";
+import AppNav from "@/components/nav/AppNav";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -50,7 +51,10 @@ export default function RootLayout({
     <html lang="en" className={`${spaceGrotesk.variable} ${sora.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <PwaRegister />
-        {children}
+        <div className="aurora aurora-a" />
+        <div className="aurora aurora-b" />
+        <AppNav active={null} />
+        <div className="flex-1">{children}</div>
       </body>
     </html>
   );

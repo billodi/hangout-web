@@ -3,6 +3,11 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import Textarea from "@/components/ui/Textarea";
+import Toast, { type ToastTone } from "@/components/ui/Toast";
+import { apiFetch } from "@/lib/apiFetch";
 
 type User = {
   id: string;
@@ -52,24 +57,11 @@ function isValidImageUrl(url: string): boolean {
   }
 }
 
-async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const headers = new Headers(options?.headers);
-  if (!headers.has("Content-Type") && options?.body) headers.set("Content-Type", "application/json");
-  const response = await fetch(path, { ...options, headers, credentials: "include", cache: "no-store" });
-  const text = await response.text();
-  const data = text ? (JSON.parse(text) as unknown) : null;
-  if (!response.ok) {
-    const msg = (data as { error?: string } | null)?.error;
-    throw new Error(msg || `Request failed (${response.status})`);
-  }
-  return data as T;
-}
-
 export default function ProfileEditorApp({ initialUser }: { initialUser: User | null }) {
   const [user, setUser] = useState<User | null>(initialUser);
   const [detail, setDetail] = useState<ProfileDetail | null>(null);
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ tone: ToastTone; message: string } | null>(null);
 
   const [editName, setEditName] = useState(initialUser?.displayName ?? "");
   const [editBio, setEditBio] = useState(initialUser?.bio ?? "");
@@ -79,12 +71,6 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
   const [galleryLocation, setGalleryLocation] = useState("");
   const [galleryLat, setGalleryLat] = useState("");
   const [galleryLng, setGalleryLng] = useState("");
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 2200);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -99,7 +85,7 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
         setEditBio(profile.profile.bio ?? "");
         setEditAvatarUrl(profile.profile.avatarUrl ?? "");
       } catch (error) {
-        if (!cancelled) setToast(error instanceof Error ? error.message : "Could not load profile");
+        if (!cancelled) setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not load profile" });
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -117,9 +103,9 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
         body: JSON.stringify({ displayName: editName, bio: editBio, avatarUrl: editAvatarUrl }),
       });
       setUser(updated);
-      setToast("Profile updated.");
+      setToast({ tone: "info", message: "Profile updated." });
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not save profile");
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not save profile" });
     }
   }
 
@@ -128,7 +114,7 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
     const imageUrl = safeText(galleryImageUrl);
     const caption = safeText(galleryCaption);
     if (!isValidImageUrl(imageUrl) || !caption) {
-      setToast("Add a valid image URL and caption.");
+      setToast({ tone: "error", message: "Add a valid image URL and caption." });
       return;
     }
 
@@ -148,75 +134,111 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
       setGalleryLocation("");
       setGalleryLat("");
       setGalleryLng("");
-      setToast("Diary entry added.");
+      setToast({ tone: "info", message: "Diary entry added." });
       const profile = await apiFetch<ProfileDetail>(`/api/profiles/${user.id}`);
       setDetail(profile);
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not add diary entry");
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not add diary entry" });
     }
   }
 
   if (!user) {
     return (
-      <main className="relative z-10 mx-auto mt-6 max-w-4xl px-3 lg:px-8 text-white">
+      <main className="relative z-10 mx-auto w-full max-w-[1500px] px-3 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-3 lg:px-8 lg:pb-10 lg:pt-6">
         <section className="shell-panel p-4">
-          <h1 className="text-xl font-semibold">Profile Page</h1>
-          <p className="mt-2 text-sm text-white/75">Please sign in first to manage your profile.</p>
-          <Link href="/map" className="action-primary inline-flex mt-3">Go Home</Link>
+          <h1 className="text-xl font-semibold" data-heading="true">
+            Me
+          </h1>
+          <p className="mt-2 text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">
+            Please sign in first to manage your profile.
+          </p>
+          <Link href="/map" className="inline-flex mt-3">
+            <Button variant="primary">Go to map</Button>
+          </Link>
         </section>
       </main>
     );
   }
 
   return (
-    <main className="relative z-10 mx-auto mt-4 max-w-5xl px-3 lg:px-8 text-white pb-8">
-      <section className="shell-panel p-3 lg:p-5">
+    <main className="relative z-10 mx-auto w-full max-w-[1500px] px-3 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-3 lg:px-8 lg:pb-10 lg:pt-6">
+      <section className="shell-panel p-4">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-xl lg:text-2xl font-semibold">My Profile</h1>
+          <div>
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.22em] text-[color-mix(in_oklab,var(--muted)_75%,transparent)]">
+              Me
+            </p>
+            <h1 className="text-xl font-semibold" data-heading="true">
+              Profile
+            </h1>
+          </div>
           <div className="flex gap-2">
-            <Link href="/map" className="action-ghost">Home</Link>
-            <Link href="/reviews" className="action-ghost">Reviews</Link>
+            <Link href="/map">
+              <Button size="sm" variant="ghost">
+                Map
+              </Button>
+            </Link>
+            <Link href="/reviews">
+              <Button size="sm" variant="secondary">
+                Reviews
+              </Button>
+            </Link>
           </div>
         </div>
 
-        {loading ? <p className="mt-3 text-sm text-white/70">Loading...</p> : null}
+        {loading ? <p className="mt-3 text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">Loading…</p> : null}
 
         {detail ? (
-          <div className="mt-3 space-y-3">
-            <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4 space-y-2">
-              <h2 className="text-base font-semibold">Edit Profile</h2>
-              <input value={editName} onChange={(e) => setEditName(e.target.value)} className="field" placeholder="Display name" />
-              <input value={editAvatarUrl} onChange={(e) => setEditAvatarUrl(e.target.value)} className="field" placeholder="Avatar URL" />
-              <textarea value={editBio} onChange={(e) => setEditBio(e.target.value)} className="field min-h-20" placeholder="Bio" />
-              <button type="button" onClick={() => void saveProfile()} className="action-primary">Save Profile</button>
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <article className="rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_80%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_38%,transparent)] p-3 lg:p-4 space-y-2">
+              <h2 className="text-base font-semibold" data-heading="true">
+                Edit profile
+              </h2>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Display name" />
+              <Input value={editAvatarUrl} onChange={(e) => setEditAvatarUrl(e.target.value)} placeholder="Avatar URL" />
+              <Textarea value={editBio} onChange={(e) => setEditBio(e.target.value)} className="min-h-20" placeholder="Bio" />
+              <Button variant="primary" onClick={() => void saveProfile()}>
+                Save
+              </Button>
             </article>
 
-            <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4 space-y-2">
-              <h2 className="text-base font-semibold">Add Diary Entry</h2>
-              <input value={galleryImageUrl} onChange={(e) => setGalleryImageUrl(e.target.value)} className="field" placeholder="Image URL" />
-              <input value={galleryCaption} onChange={(e) => setGalleryCaption(e.target.value)} className="field" placeholder="Caption" />
-              <input value={galleryLocation} onChange={(e) => setGalleryLocation(e.target.value)} className="field" placeholder="Location optional" />
+            <article className="rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_80%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_38%,transparent)] p-3 lg:p-4 space-y-2">
+              <h2 className="text-base font-semibold" data-heading="true">
+                Add diary entry
+              </h2>
+              <Input value={galleryImageUrl} onChange={(e) => setGalleryImageUrl(e.target.value)} placeholder="Image URL" />
+              <Input value={galleryCaption} onChange={(e) => setGalleryCaption(e.target.value)} placeholder="Caption" />
+              <Input value={galleryLocation} onChange={(e) => setGalleryLocation(e.target.value)} placeholder="Location (optional)" />
               <div className="grid grid-cols-2 gap-2">
-                <input value={galleryLat} onChange={(e) => setGalleryLat(e.target.value)} className="field" placeholder="Lat optional" />
-                <input value={galleryLng} onChange={(e) => setGalleryLng(e.target.value)} className="field" placeholder="Lng optional" />
+                <Input value={galleryLat} onChange={(e) => setGalleryLat(e.target.value)} placeholder="Lat (optional)" />
+                <Input value={galleryLng} onChange={(e) => setGalleryLng(e.target.value)} placeholder="Lng (optional)" />
               </div>
-              <button type="button" onClick={() => void postDiaryEntry()} className="action-primary">Add Entry</button>
+              <Button variant="primary" onClick={() => void postDiaryEntry()}>
+                Post
+              </Button>
             </article>
 
-            <article className="rounded-2xl border border-white/20 bg-black/20 p-3 lg:p-4">
-              <h2 className="text-base font-semibold">Photo Diary</h2>
+            <article className="lg:col-span-2 rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_80%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_38%,transparent)] p-3 lg:p-4">
+              <h2 className="text-base font-semibold" data-heading="true">
+                Photo diary
+              </h2>
               {detail.gallery.length === 0 ? (
-                <p className="mt-2 text-sm text-white/70">No entries yet.</p>
+                <p className="mt-2 text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">No entries yet.</p>
               ) : (
-                <div className="mt-2 grid grid-cols-1 lg:grid-cols-2 gap-2 lg:gap-3">
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 lg:gap-3">
                   {detail.gallery.map((entry) => (
-                    <div key={entry.id} className="rounded-xl border border-white/15 bg-white/5 overflow-hidden">
+                    <div
+                      key={entry.id}
+                      className="overflow-hidden rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_42%,transparent)]"
+                    >
                       <div className="relative h-40 w-full">
                         <Image src={entry.imageUrl} alt={entry.caption} fill unoptimized sizes="(max-width:1024px) 100vw, 40vw" className="object-cover" />
                       </div>
                       <div className="p-3">
-                        <p className="text-sm font-medium">{entry.caption}</p>
-                        {entry.location ? <p className="text-xs text-white/65 mt-1">{entry.location}</p> : null}
+                        <p className="text-sm font-semibold">{entry.caption}</p>
+                        {entry.location ? (
+                          <p className="text-xs text-[color-mix(in_oklab,var(--muted)_75%,transparent)] mt-1">{entry.location}</p>
+                        ) : null}
                       </div>
                     </div>
                   ))}
@@ -227,11 +249,7 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
         ) : null}
       </section>
 
-      {toast ? (
-        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2">
-          <div className="rounded-full bg-emerald-500 text-white px-4 py-2 text-sm font-medium shadow-lg">{toast}</div>
-        </div>
-      ) : null}
+      <Toast toast={toast} onClear={() => setToast(null)} />
     </main>
   );
 }

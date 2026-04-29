@@ -1,5 +1,5 @@
-import HangoutApp from "../HangoutApp";
 import { getHomeData } from "@/lib/homeData";
+import MapScreen from "./MapScreen";
 
 export const dynamic = "force-dynamic";
 
@@ -7,11 +7,10 @@ export default async function MapPage(props: { searchParams: Promise<{ activity?
   const { initialActivities, initialBackendOk, initialUser } = await getHomeData();
   const searchParams = await props.searchParams;
   return (
-    <HangoutApp
+    <MapScreen
       initialActivities={initialActivities}
       initialBackendOk={initialBackendOk}
       initialUser={initialUser}
-      lockedView="map"
       preferredActivityId={typeof searchParams.activity === "string" ? searchParams.activity : null}
     />
   );

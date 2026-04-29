@@ -2,22 +2,103 @@
 @import "leaflet/dist/leaflet.css";
 
 :root {
-  --bg-deep: #081223;
-  --bg-mid: #122a45;
-  --bg-glow: #264f78;
-  --text-main: #edf3ff;
-  --text-muted: #adc0db;
-  --panel: color-mix(in oklab, #0b1a30 82%, #173557 18%);
-  --panel-border: color-mix(in oklab, #9fc1e8 28%, transparent);
-  --focus: #f59e0b66;
+  color-scheme: light dark;
+
+  /* Brand */
+  --accent: #ff6b35;
+  --accent2: #4ecdc4;
+  --accent3: #f7c94b;
+
+  /* Semantics (light default) */
+  --bg: #f6f8ff;
+  --bg2: #eef4ff;
+  --text: #081227;
+  --muted: #425a77;
+
+  --surface: color-mix(in oklab, white 86%, #cfe3ff 14%);
+  --surface2: color-mix(in oklab, white 78%, #cfe3ff 22%);
+  --border: color-mix(in oklab, #204260 22%, transparent);
+
+  --shadow: 0 22px 60px -44px color-mix(in oklab, #0b1220 55%, transparent),
+    0 10px 28px -24px color-mix(in oklab, #0b1220 42%, transparent);
+  --shadow-inset: inset 0 1px 0 color-mix(in oklab, white 35%, transparent);
+
+  --focus: color-mix(in oklab, var(--accent) 35%, transparent);
+  --ring: 0 0 0 3px var(--focus);
+
+  --radius-lg: 22px;
+  --radius-md: 16px;
+  --radius-sm: 12px;
+
+  --blur: 18px;
+
+  /* Aurora blobs */
+  --aurora-a: color-mix(in oklab, #2fc6ff 38%, transparent);
+  --aurora-b: color-mix(in oklab, #ff8f3a 34%, transparent);
+
+  /* Activity type accents */
   --type-chill: #34d399;
   --type-active: #38bdf8;
   --type-help: #f59e0b;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #061122;
+    --bg2: #0b1a30;
+    --text: #edf3ff;
+    --muted: #adc0db;
+
+    --surface: color-mix(in oklab, #0b1a30 86%, #173557 14%);
+    --surface2: color-mix(in oklab, #0b1a30 76%, #173557 24%);
+    --border: color-mix(in oklab, #9fc1e8 26%, transparent);
+
+    --shadow: 0 26px 76px -52px #000000d1, 0 16px 40px -34px #000000a6;
+    --shadow-inset: inset 0 1px 0 #ffffff1f;
+
+    --aurora-a: #2fc6ff7d;
+    --aurora-b: #ff8f3a6b;
+  }
+}
+
+html[data-theme="light"] {
+  --bg: #f6f8ff;
+  --bg2: #eef4ff;
+  --text: #081227;
+  --muted: #425a77;
+
+  --surface: color-mix(in oklab, white 86%, #cfe3ff 14%);
+  --surface2: color-mix(in oklab, white 78%, #cfe3ff 22%);
+  --border: color-mix(in oklab, #204260 22%, transparent);
+
+  --shadow: 0 22px 60px -44px color-mix(in oklab, #0b1220 55%, transparent),
+    0 10px 28px -24px color-mix(in oklab, #0b1220 42%, transparent);
+  --shadow-inset: inset 0 1px 0 color-mix(in oklab, white 35%, transparent);
+
+  --aurora-a: color-mix(in oklab, #2fc6ff 38%, transparent);
+  --aurora-b: color-mix(in oklab, #ff8f3a 34%, transparent);
+}
+
+html[data-theme="dark"] {
+  --bg: #061122;
+  --bg2: #0b1a30;
+  --text: #edf3ff;
+  --muted: #adc0db;
+
+  --surface: color-mix(in oklab, #0b1a30 86%, #173557 14%);
+  --surface2: color-mix(in oklab, #0b1a30 76%, #173557 24%);
+  --border: color-mix(in oklab, #9fc1e8 26%, transparent);
+
+  --shadow: 0 26px 76px -52px #000000d1, 0 16px 40px -34px #000000a6;
+  --shadow-inset: inset 0 1px 0 #ffffff1f;
+
+  --aurora-a: #2fc6ff7d;
+  --aurora-b: #ff8f3a6b;
+}
+
 @theme inline {
-  --color-background: var(--bg-deep);
-  --color-foreground: var(--text-main);
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
   --font-sans: var(--font-space-grotesk), "Avenir Next", "Segoe UI", sans-serif;
   --font-heading: var(--font-sora), "Avenir Next", "Segoe UI", sans-serif;
   --font-mono: "Cascadia Mono", "Consolas", "Courier New", monospace;
@@ -95,13 +176,13 @@ body {
 
 body {
   margin: 0;
-  color: var(--text-main);
+  color: var(--text);
   font-family: var(--font-sans);
   letter-spacing: 0.01em;
   background:
-    radial-gradient(1100px 650px at 88% -10%, #2f5f8f55 0%, transparent 65%),
-    radial-gradient(820px 460px at -15% 20%, #3f7daa66 0%, transparent 66%),
-    linear-gradient(180deg, var(--bg-mid) 0%, var(--bg-deep) 70%);
+    radial-gradient(1100px 650px at 88% -10%, color-mix(in oklab, var(--accent2) 18%, transparent) 0%, transparent 65%),
+    radial-gradient(820px 460px at -15% 20%, color-mix(in oklab, #2fc6ff 18%, transparent) 0%, transparent 66%),
+    linear-gradient(180deg, var(--bg2) 0%, var(--bg) 70%);
 }
 
 h1,
@@ -128,7 +209,7 @@ h6,
   height: min(38vw, 420px);
   left: -10%;
   top: 12%;
-  background: #2fc6ff7d;
+  background: var(--aurora-a);
   animation: drift-a 10s ease-in-out infinite alternate;
 }
 
@@ -137,7 +218,7 @@ h6,
   height: min(44vw, 500px);
   right: -14%;
   bottom: 8%;
-  background: #ff8f3a6b;
+  background: var(--aurora-b);
   animation: drift-b 12s ease-in-out infinite alternate;
 }
 
@@ -160,13 +241,15 @@ h6,
 }
 
 .shell-panel {
-  background: linear-gradient(145deg, color-mix(in oklab, var(--panel) 91%, #2a5f8f 9%), color-mix(in oklab, var(--panel) 82%, #061122 18%));
-  border: 1px solid var(--panel-border);
-  border-radius: 20px;
-  box-shadow:
-    0 22px 58px -36px #000000c0,
-    inset 0 1px 0 #ffffff1f;
-  backdrop-filter: blur(16px);
+  background: linear-gradient(
+    145deg,
+    color-mix(in oklab, var(--surface) 92%, var(--accent2) 8%),
+    color-mix(in oklab, var(--surface) 84%, #2fc6ff 16%)
+  );
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow), var(--shadow-inset);
+  backdrop-filter: blur(var(--blur));
   animation: rise-in 420ms ease both;
 }
 
@@ -185,14 +268,14 @@ h6,
   text-transform: uppercase;
   letter-spacing: 0.18em;
   font-size: 11px;
-  color: #9ec4e5;
+  color: color-mix(in oklab, var(--muted) 80%, var(--accent2) 20%);
   font-weight: 700;
 }
 
 .metric-card {
   border-radius: 13px;
-  border: 1px solid #ffffff2a;
-  background: linear-gradient(180deg, #ffffff1a, #ffffff08);
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--surface2) 70%, transparent), color-mix(in oklab, var(--surface) 55%, transparent));
   padding: 0.62rem;
 }
 
@@ -201,7 +284,7 @@ h6,
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--text-muted);
+  color: color-mix(in oklab, var(--muted) 85%, transparent);
 }
 
 .metric-value {
@@ -212,54 +295,54 @@ h6,
 }
 
 .tab-chip {
-  border: 1px solid #ffffff36;
+  border: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
   border-radius: 9999px;
   padding: 0.44rem 0.92rem;
   font-size: 0.82rem;
-  color: #dce8f9;
-  background: linear-gradient(180deg, #ffffff1a, #ffffff09);
+  color: color-mix(in oklab, var(--text) 86%, transparent);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--surface2) 60%, transparent), color-mix(in oklab, var(--surface) 46%, transparent));
   transition: all 160ms ease;
   white-space: nowrap;
 }
 
 .tab-chip:hover {
-  border-color: #ffffff55;
-  background: linear-gradient(180deg, #ffffff24, #ffffff12);
+  border-color: color-mix(in oklab, var(--border) 100%, transparent);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--surface2) 70%, transparent), color-mix(in oklab, var(--surface) 56%, transparent));
   transform: translateY(-1px);
 }
 
 .tab-chip-active {
-  border-color: #fb923c;
-  background: linear-gradient(180deg, #fb923ccc, #ea580ccc);
+  border-color: color-mix(in oklab, var(--accent) 72%, transparent);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 76%, white 24%), var(--accent));
   color: white;
 }
 
 .field {
   width: 100%;
-  border: 1px solid #ffffff26;
-  border-radius: 12px;
-  background: #ffffff0c;
-  color: var(--text-main);
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--surface) 55%, transparent);
+  color: var(--text);
   padding: 0.6rem 0.74rem;
   font-size: 0.9rem;
   transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
 }
 
 .field::placeholder {
-  color: #a8bad4;
+  color: color-mix(in oklab, var(--muted) 70%, transparent);
 }
 
 .field:focus {
   outline: none;
-  border-color: #fb923c;
-  background: #ffffff12;
-  box-shadow: 0 0 0 3px var(--focus);
+  border-color: color-mix(in oklab, var(--accent) 70%, transparent);
+  background: color-mix(in oklab, var(--surface2) 66%, transparent);
+  box-shadow: var(--ring);
 }
 
 .action-primary {
-  border: 1px solid #fb923c;
-  border-radius: 12px;
-  background: linear-gradient(180deg, #fb923c, #ea580c);
+  border: 1px solid color-mix(in oklab, var(--accent) 66%, transparent);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 78%, white 22%), var(--accent));
   color: white;
   padding: 0.56rem 0.9rem;
   font-size: 0.88rem;
@@ -271,7 +354,7 @@ h6,
 .action-primary:hover:not(:disabled) {
   transform: translateY(-1px);
   filter: brightness(1.04);
-  box-shadow: 0 14px 24px -16px #fb923ccc;
+  box-shadow: 0 18px 34px -22px color-mix(in oklab, var(--accent) 55%, transparent);
 }
 
 .action-primary:disabled {
@@ -280,10 +363,10 @@ h6,
 }
 
 .action-ghost {
-  border: 1px solid #ffffff2f;
-  border-radius: 12px;
-  background: linear-gradient(180deg, #ffffff19, #ffffff0b);
-  color: #edf4ff;
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--surface2) 56%, transparent), color-mix(in oklab, var(--surface) 42%, transparent));
+  color: color-mix(in oklab, var(--text) 92%, transparent);
   padding: 0.56rem 0.9rem;
   font-size: 0.88rem;
   font-weight: 600;
@@ -291,7 +374,7 @@ h6,
 }
 
 .action-ghost:hover:not(:disabled) {
-  border-color: #ffffff55;
+  border-color: color-mix(in oklab, var(--border) 100%, transparent);
 }
 
 .action-ghost:disabled {
@@ -302,7 +385,7 @@ h6,
 .link-btn {
   border: none;
   background: transparent;
-  color: #93d0ff;
+  color: color-mix(in oklab, var(--accent2) 70%, var(--text) 30%);
   font-size: 0.82rem;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -310,7 +393,7 @@ h6,
 }
 
 .link-btn:hover {
-  color: #bfe2ff;
+  color: color-mix(in oklab, var(--accent2) 85%, var(--text) 15%);
 }
 
 .no-scrollbar::-webkit-scrollbar {

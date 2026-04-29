@@ -1,17 +1,10 @@
-import HangoutApp from "../HangoutApp";
-import { getHomeData } from "@/lib/homeData";
+import { getCurrentUser } from "@/lib/auth";
+import CommunityScreen from "./CommunityScreen";
 
 export const dynamic = "force-dynamic";
 
 export default async function CommunityPage() {
-  const { initialActivities, initialBackendOk, initialUser } = await getHomeData();
-  return (
-    <HangoutApp
-      initialActivities={initialActivities}
-      initialBackendOk={initialBackendOk}
-      initialUser={initialUser}
-      lockedView="profiles"
-    />
-  );
+  const initialUser = await getCurrentUser();
+  return <CommunityScreen initialUser={initialUser ? { id: initialUser.id } : null} />;
 }
 
