@@ -9,36 +9,41 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 type Payload = { ids?: unknown; all?: unknown };
 
 export async function POST(req: Request) {
-  const user = await requireUser();
-
-  let body: Payload;
   try {
-    body = (await req.json()) as Payload;
-  } catch {
-    return Response.json({ error: "Invalid JSON" }, { status: 400 });
-  }
+    const user = await requireUser();
 
-  const db = getDb();
-  const nowIso = new Date().toISOString();
+    let body: Payload;
+    try {
+      body = (await req.json()) as Payload;
+    } catch {
+      return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    }
 
-  const all = body.all === true;
-  const ids = Array.isArray(body.ids) ? body.ids.filter((v): v is string => typeof v === "string" && v.length > 10).slice(0, 50) : [];
+    const db = getDb();
+    const nowIso = new Date().toISOString();
 
-  if (!all && ids.length === 0) return Response.json({ error: "No ids" }, { status: 400 });
+    const all = body.all === true;
+    const ids = Array.isArray(body.ids) ? body.ids.filter((v): v is string => typeof v === "string" && v.length > 10).slice(0, 50) : [];
 
-  if (all) {
+    if (!all && ids.length === 0) return Response.json({ error: "No ids" }, { status: 400 });
+
+    if (all) {
+      await db
+        .update(notifications)
+        .set({ readAt: nowIso })
+        .where(and(eq(notifications.userId, user.id), isNull(notifications.readAt)));
+      return Response.json({ ok: true });
+    }
+
     await db
       .update(notifications)
       .set({ readAt: nowIso })
-      .where(and(eq(notifications.userId, user.id), isNull(notifications.readAt)));
+      .where(and(eq(notifications.userId, user.id), inArray(notifications.id, ids)));
+
     return Response.json({ ok: true });
+  } catch (error) {
+    // Degrade gracefully if notifications table is not available.
+    console.error("POST /api/notifications/mark-read failed", error);
+    return Response.json({ ok: true, degraded: true });
   }
-
-  await db
-    .update(notifications)
-    .set({ readAt: nowIso })
-    .where(and(eq(notifications.userId, user.id), inArray(notifications.id, ids)));
-
-  return Response.json({ ok: true });
 }
-

@@ -17,6 +17,24 @@ type NotificationRow = {
   createdAt: string;
 };
 
+type ChatThreadRow = {
+  id: string;
+  otherUser: { id: string; displayName: string; avatarUrl: string | null } | null;
+  unreadCount: number;
+  updatedAt: string;
+  lastMessage: { id: string; body: string; authorUserId: string; createdAt: string } | null;
+};
+
+type ChatMessageRow = {
+  id: string;
+  threadId: string;
+  body: string;
+  createdAt: string;
+  readAt: string | null;
+  authorUserId: string;
+  author: { id: string; displayName: string; avatarUrl: string | null };
+};
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers);
   if (!headers.has("Content-Type") && options?.body) headers.set("Content-Type", "application/json");
@@ -143,6 +161,15 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
   const [pushSupported, setPushSupported] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatRows, setChatRows] = useState<ChatThreadRow[]>([]);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessageRow[]>([]);
+  const [chatBusy, setChatBusy] = useState(false);
+  const [chatMessageBusy, setChatMessageBusy] = useState(false);
+  const [chatBody, setChatBody] = useState("");
+  const [chatTargetUserId, setChatTargetUserId] = useState("");
 
   async function refreshNotifications() {
     try {
@@ -159,6 +186,86 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
     const t = window.setInterval(() => void refreshNotifications(), 45_000);
     return () => window.clearInterval(t);
   }, []);
+
+  async function refreshChats() {
+    try {
+      const data = await apiFetch<{ items: ChatThreadRow[] }>("/api/chats", { cache: "no-store" });
+      setChatRows(data.items);
+      setChatUnreadCount(data.items.reduce((sum, row) => sum + Math.max(0, row.unreadCount || 0), 0));
+      if (!selectedChatId && data.items.length > 0) setSelectedChatId(data.items[0]!.id);
+    } catch {
+      setChatRows([]);
+      setChatUnreadCount(0);
+    }
+  }
+
+  async function refreshChatMessages(threadId: string) {
+    setChatBusy(true);
+    try {
+      const rows = await apiFetch<ChatMessageRow[]>(`/api/chats/${threadId}/messages`, { cache: "no-store" });
+      setChatMessages(rows);
+    } catch {
+      setChatMessages([]);
+    } finally {
+      setChatBusy(false);
+    }
+  }
+
+  async function markChatRead(threadId: string) {
+    try {
+      await apiFetch<{ ok: boolean }>(`/api/chats/${threadId}/read`, { method: "POST" });
+      await refreshChats();
+    } catch {
+      // ignore
+    }
+  }
+
+  async function startChat() {
+    const targetId = chatTargetUserId.trim();
+    if (!targetId) return;
+    try {
+      const created = await apiFetch<{ threadId: string }>("/api/chats", {
+        method: "POST",
+        body: JSON.stringify({ userId: targetId }),
+      });
+      setChatTargetUserId("");
+      setSelectedChatId(created.threadId);
+      await refreshChats();
+      await refreshChatMessages(created.threadId);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function sendChatMessage() {
+    const threadId = selectedChatId;
+    const body = chatBody.trim();
+    if (!threadId || !body) return;
+    setChatMessageBusy(true);
+    try {
+      await apiFetch<ChatMessageRow>(`/api/chats/${threadId}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ body }),
+      });
+      setChatBody("");
+      await refreshChats();
+      await refreshChatMessages(threadId);
+    } finally {
+      setChatMessageBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    void refreshChats();
+    const t = window.setInterval(() => void refreshChats(), 20_000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (!chatOpen || !selectedChatId) return;
+    void refreshChatMessages(selectedChatId);
+    void markChatRead(selectedChatId);
+  }, [chatOpen, selectedChatId]);
 
   useEffect(() => {
     setPushSupported("serviceWorker" in navigator && "PushManager" in window && "Notification" in window);
@@ -273,11 +380,49 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
                   ) : null}
                 </span>
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setChatOpen(true);
+                  void refreshChats();
+                }}
+                className="relative rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-2.5 py-1.5 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
+                aria-label="Chats"
+                title="Chats"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <span>Chats</span>
+                  {chatUnreadCount > 0 ? (
+                    <span className="grid h-4 min-w-4 place-items-center rounded-full bg-[color-mix(in_oklab,var(--accent2)_75%,transparent)] px-1 text-[10px] font-extrabold text-black">
+                      {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
+                    </span>
+                  ) : null}
+                </span>
+              </button>
               <ThemeToggle />
             </div>
 
             <div className="lg:hidden">
-              <ThemeToggle />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setChatOpen(true);
+                    void refreshChats();
+                  }}
+                  className="relative rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-2.5 py-1.5 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
+                  aria-label="Chats"
+                  title="Chats"
+                >
+                  Chats
+                  {chatUnreadCount > 0 ? (
+                    <span className="ml-1.5 inline-grid h-4 min-w-4 place-items-center rounded-full bg-[color-mix(in_oklab,var(--accent2)_75%,transparent)] px-1 text-[10px] font-extrabold text-black">
+                      {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
+                    </span>
+                  ) : null}
+                </button>
+                <ThemeToggle />
+              </div>
             </div>
           </div>
         </div>
@@ -351,6 +496,101 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
         </div>
       </Modal>
 
+      <Modal open={chatOpen} title="Chats" onClose={() => setChatOpen(false)} size="lg">
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <input
+              value={chatTargetUserId}
+              onChange={(e) => setChatTargetUserId(e.target.value)}
+              placeholder="Start chat by user ID"
+              className="w-full rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] bg-transparent px-3 py-2 text-sm outline-none"
+            />
+            <button type="button" className="tab-chip tab-chip-active" onClick={() => void startChat()}>
+              Start
+            </button>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-[260px_1fr]">
+            <div className="max-h-[60vh] space-y-2 overflow-auto pr-1">
+              {chatRows.length === 0 ? (
+                <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">No chats yet.</p>
+              ) : (
+                chatRows.map((row) => (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => setSelectedChatId(row.id)}
+                    className={cn(
+                      "w-full rounded-[var(--radius-md)] border px-3 py-2 text-left",
+                      selectedChatId === row.id
+                        ? "border-[color-mix(in_oklab,var(--accent)_55%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_55%,transparent)]"
+                        : "border-[color-mix(in_oklab,var(--border)_70%,transparent)] hover:bg-[color-mix(in_oklab,var(--surface2)_42%,transparent)]",
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold">{row.otherUser?.displayName ?? "Unknown user"}</p>
+                      {row.unreadCount > 0 ? (
+                        <span className="rounded-full bg-[color-mix(in_oklab,var(--accent2)_75%,transparent)] px-1.5 py-0.5 text-[10px] font-extrabold text-black">
+                          {row.unreadCount}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-xs text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">
+                      {row.lastMessage?.body ?? "No messages yet"}
+                    </p>
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_75%,transparent)] p-3">
+              {!selectedChatId ? (
+                <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">Choose a chat to start messaging.</p>
+              ) : (
+                <div className="space-y-3">
+                  <div className="max-h-[44vh] space-y-2 overflow-auto pr-1">
+                    {chatBusy ? (
+                      <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">Loading…</p>
+                    ) : chatMessages.length === 0 ? (
+                      <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">No messages yet.</p>
+                    ) : (
+                      chatMessages
+                        .slice()
+                        .reverse()
+                        .map((message) => (
+                          <div key={message.id} className="rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_65%,transparent)] px-3 py-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs font-semibold">{message.author.displayName}</p>
+                              <p className="text-[10px] text-[color-mix(in_oklab,var(--muted)_70%,transparent)]">
+                                {new Date(message.createdAt).toLocaleString()}
+                              </p>
+                            </div>
+                            <p className="mt-1 text-sm">{message.body}</p>
+                          </div>
+                        ))
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={chatBody}
+                      onChange={(e) => setChatBody(e.target.value)}
+                      placeholder="Write a message"
+                      className="w-full rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] bg-transparent px-3 py-2 text-sm outline-none"
+                    />
+                    <button
+                      type="button"
+                      className="tab-chip tab-chip-active"
+                      disabled={chatMessageBusy || !chatBody.trim()}
+                      onClick={() => void sendChatMessage()}
+                    >
+                      Send
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
+
       <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-[color-mix(in_oklab,var(--border)_75%,transparent)] bg-[color-mix(in_oklab,var(--surface)_40%,transparent)] backdrop-blur-[var(--blur)] lg:hidden">
         <div className="mx-auto flex max-w-[1500px] items-center justify-around px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">
           <Link
@@ -417,4 +657,3 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
     </>
   );
 }
-

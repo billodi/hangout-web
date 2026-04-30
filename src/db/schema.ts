@@ -255,5 +255,38 @@ export const activityCheckins = pgTable(
   (table) => [uniqueIndex("activity_checkins_activity_user_unique").on(table.activityId, table.userId)],
 );
 
+export const chatThreads = pgTable(
+  "chat_threads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userLowId: uuid("user_low_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    userHighId: uuid("user_high_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("chat_threads_pair_unique").on(table.userLowId, table.userHighId)],
+);
+
+export const chatMessages = pgTable(
+  "chat_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    threadId: uuid("thread_id")
+      .notNull()
+      .references(() => chatThreads.id, { onDelete: "cascade" }),
+    authorUserId: uuid("author_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    readAt: timestamp("read_at", { withTimezone: true, mode: "string" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("chat_messages_thread_created_idx").on(table.threadId, table.createdAt)],
+);
+
 export type Activity = typeof activities.$inferSelect;
 export type User = typeof users.$inferSelect;
