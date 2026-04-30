@@ -93,7 +93,7 @@ export default function Modal({
         aria-modal="true"
         aria-labelledby={titleId}
         className={cn(
-          "w-full max-h-[90vh] overflow-auto rounded-[var(--radius-lg)] border border-[var(--border)] " +
+          "anim-modal w-full max-h-[90vh] overflow-auto rounded-[var(--radius-lg)] border border-[var(--border)] " +
             "bg-[linear-gradient(155deg,color-mix(in_oklab,var(--surface)_94%,#fff_6%),color-mix(in_oklab,var(--surface2)_80%,var(--accent2)_20%))] " +
             "[box-shadow:var(--shadow),var(--shadow-inset)] backdrop-blur-[var(--blur)] outline-none",
           position === "offsetTop"

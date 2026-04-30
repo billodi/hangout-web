@@ -66,7 +66,7 @@ export default function Sheet({
           aria-modal="true"
           aria-labelledby={titleId}
           className={cn(
-            "pointer-events-auto w-full max-w-2xl rounded-t-[28px] border border-[var(--border)] " +
+            "anim-sheet pointer-events-auto w-full max-w-2xl rounded-t-[28px] border border-[var(--border)] " +
               "bg-[linear-gradient(155deg,color-mix(in_oklab,var(--surface)_94%,#fff_6%),color-mix(in_oklab,var(--surface2)_80%,var(--accent2)_20%))] " +
               "[box-shadow:var(--shadow),var(--shadow-inset)] backdrop-blur-[var(--blur)] outline-none touch-manipulation",
             position === "offsetTop" && height === "full"

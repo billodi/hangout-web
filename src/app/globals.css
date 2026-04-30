@@ -107,6 +107,34 @@ body {
     linear-gradient(180deg, var(--bg2) 0%, var(--bg) 70%);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition-duration: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.995); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes sheet-in {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
 h1,h2,h3,h4,h5,h6,[data-heading="true"] { font-family: var(--font-heading); letter-spacing: 0.01em; }
 
 .text-gradient {
@@ -154,6 +182,41 @@ h1,h2,h3,h4,h5,h6,[data-heading="true"] { font-family: var(--font-heading); lett
   box-shadow: var(--shadow), var(--shadow-inset);
   backdrop-filter: blur(var(--blur));
   animation: rise-in 360ms cubic-bezier(.22,.8,.32,1) both;
+}
+
+.anim-page {
+  animation: page-in 420ms cubic-bezier(.2,.84,.28,1) both;
+}
+
+.anim-modal {
+  animation: modal-in 280ms cubic-bezier(.2,.84,.28,1) both;
+}
+
+.anim-sheet {
+  animation: sheet-in 300ms cubic-bezier(.2,.84,.28,1) both;
+}
+
+.anim-toast {
+  animation: toast-in 220ms cubic-bezier(.2,.84,.28,1) both;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  transition:
+    transform 180ms cubic-bezier(.2,.84,.28,1),
+    box-shadow 180ms cubic-bezier(.2,.84,.28,1),
+    border-color 180ms cubic-bezier(.2,.84,.28,1),
+    background-color 180ms cubic-bezier(.2,.84,.28,1),
+    color 180ms cubic-bezier(.2,.84,.28,1),
+    opacity 180ms cubic-bezier(.2,.84,.28,1);
+}
+
+button:active,
+a:active {
+  transform: translateY(1px) scale(0.995);
 }
 
 @keyframes rise-in { from { opacity: 0; transform: translateY(10px) scale(.98);} to { opacity: 1; transform: translateY(0) scale(1);} }

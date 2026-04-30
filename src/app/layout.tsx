@@ -54,7 +54,7 @@ export default function RootLayout({
         <div className="aurora aurora-a" />
         <div className="aurora aurora-b" />
         <AppNav active={null} />
-        <div className="flex-1">{children}</div>
+        <div className="flex-1 anim-page">{children}</div>
       </body>
     </html>
   );
