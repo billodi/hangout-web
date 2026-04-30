@@ -53,6 +53,7 @@ type ActivityOption = {
   title: string;
   creatorId: string | null;
   joined: boolean;
+  going?: number;
   description?: string | null;
   location?: string;
   whenISO?: string;
@@ -95,6 +96,7 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
   const [galleryActivityId, setGalleryActivityId] = useState("");
   const [diaryActivityOptions, setDiaryActivityOptions] = useState<ActivityOption[]>([]);
   const [myPosts, setMyPosts] = useState<ActivityOption[]>([]);
+  const [myPostsQuery, setMyPostsQuery] = useState("");
   const [editingPost, setEditingPost] = useState<ActivityOption | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
@@ -135,6 +137,17 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
     const h = String(d.getHours()).padStart(2, "0");
     const m = String(d.getMinutes()).padStart(2, "0");
     return `${h}:${m}`;
+  }
+
+  function getPostStatus(post: ActivityOption): { label: "Open" | "Full" | "Closed"; tone: string } {
+    const whenTs = post.whenISO ? new Date(post.whenISO).getTime() : NaN;
+    if (Number.isFinite(whenTs) && whenTs <= Date.now()) {
+      return { label: "Closed", tone: "text-rose-300" };
+    }
+    if (typeof post.limit === "number" && typeof post.going === "number" && post.going >= post.limit) {
+      return { label: "Full", tone: "text-amber-300" };
+    }
+    return { label: "Open", tone: "text-emerald-300" };
   }
 
   function startEditPost(post: ActivityOption) {
@@ -426,20 +439,42 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
 
             <article className="lg:col-span-2 rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_80%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_38%,transparent)] p-3 lg:p-4">
               <h2 className="text-base font-semibold" data-heading="true">
-                Past posts
+                My posts
               </h2>
-              {myPosts.filter((p) => p.whenISO && new Date(p.whenISO).getTime() < Date.now()).length === 0 ? (
-                <p className="mt-2 text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">No past posts yet.</p>
+              <div className="mt-3">
+                <Input
+                  value={myPostsQuery}
+                  onChange={(e) => setMyPostsQuery(e.target.value)}
+                  placeholder="Search your posts by title, location, or description"
+                />
+              </div>
+              {myPosts.filter((post) => {
+                const q = myPostsQuery.trim().toLowerCase();
+                if (!q) return true;
+                const haystack = `${post.title ?? ""} ${post.location ?? ""} ${post.description ?? ""}`.toLowerCase();
+                return haystack.includes(q);
+              }).length === 0 ? (
+                <p className="mt-2 text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">No posts yet.</p>
               ) : (
                 <div className="mt-3 space-y-2">
                   {myPosts
-                    .filter((p) => p.whenISO && new Date(p.whenISO).getTime() < Date.now())
+                    .filter((post) => {
+                      const q = myPostsQuery.trim().toLowerCase();
+                      if (!q) return true;
+                      const haystack = `${post.title ?? ""} ${post.location ?? ""} ${post.description ?? ""}`.toLowerCase();
+                      return haystack.includes(q);
+                    })
                     .sort((a, b) => new Date(b.whenISO ?? 0).getTime() - new Date(a.whenISO ?? 0).getTime())
-                    .map((post) => (
+                    .map((post) => {
+                      const status = getPostStatus(post);
+                      return (
                       <div key={post.id} className="rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_42%,transparent)] p-3">
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <p className="text-sm font-semibold">{post.title}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold">{post.title}</p>
+                              <span className={`text-[11px] font-bold ${status.tone}`}>{status.label}</span>
+                            </div>
                             <p className="text-xs text-[color-mix(in_oklab,var(--muted)_74%,transparent)]">{post.location} - {post.whenISO ? new Date(post.whenISO).toLocaleString() : ""}</p>
                           </div>
                           <div className="flex gap-2">
@@ -448,7 +483,7 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
                           </div>
                         </div>
                       </div>
-                    ))}
+                    )})}
                 </div>
               )}
             </article>
