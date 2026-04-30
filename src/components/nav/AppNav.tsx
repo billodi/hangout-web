@@ -473,9 +473,6 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
               <Link className={cn("tab-chip", current === "reviews" && "tab-chip-active")} href="/reviews">
                 Reviews
               </Link>
-              <Link className={cn("tab-chip", current === "profile" && "tab-chip-active")} href="/profile">
-                Me
-              </Link>
               <button
                 type="button"
                 onClick={() => {
@@ -857,20 +854,6 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
             People
           </Link>
 
-          <Link
-            href="/profile"
-            className={cn(
-              "flex flex-col items-center gap-1 text-[11px] font-semibold",
-              current === "profile" ? "text-[color-mix(in_oklab,var(--accent)_75%,var(--text)_25%)]" : "text-[color-mix(in_oklab,var(--muted)_70%,transparent)]",
-            )}
-          >
-            <NavIcon>
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </NavIcon>
-            Me
-          </Link>
         </div>
       </nav>
     </>
