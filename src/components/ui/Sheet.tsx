@@ -45,17 +45,17 @@ export default function Sheet({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end pointer-events-none">
+    <div className="fixed inset-0 z-50 flex flex-col justify-end">
       {/* Full-screen scrim as its own control so taps always close (not lost to flex hit-testing). */}
       <button
         type="button"
         aria-label="Close sheet"
-        className="pointer-events-auto absolute inset-0 border-0 bg-black/40 backdrop-blur-md cursor-default"
+        className="absolute inset-0 z-0 border-0 bg-black/40 backdrop-blur-md cursor-default"
         onClick={onClose}
       />
       <div
         className={cn(
-          "pointer-events-none relative z-[1] flex w-full justify-center px-0 pb-[env(safe-area-inset-bottom)]",
+          "relative z-10 flex w-full justify-center px-0 pb-[env(safe-area-inset-bottom)]",
           position === "offsetTop" ? "pt-20 sm:pt-24 lg:pt-28" : null,
         )}
       >
@@ -97,7 +97,16 @@ export default function Sheet({
               </button>
             </div>
           </div>
-          <div className="max-h-[min(70vh,100dvh-12rem)] overflow-y-auto overscroll-contain p-4 pb-6">{children}</div>
+          <div
+            className={cn(
+              "max-h-[min(70vh,100dvh-12rem)] overflow-y-auto overscroll-contain p-4",
+              position === "offsetTop"
+                ? "pb-[calc(7rem+env(safe-area-inset-bottom))] sm:pb-10"
+                : "pb-6",
+            )}
+          >
+            {children}
+          </div>
         </div>
       </div>
     </div>

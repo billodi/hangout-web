@@ -278,6 +278,17 @@ export default function CommunityScreen({ initialUser }: { initialUser: User }) 
               {userId && detail.profile.id !== userId ? (
                 <Button
                   size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    window.location.href = `/map?chatUser=${encodeURIComponent(detail.profile.id)}`;
+                  }}
+                >
+                  Chat
+                </Button>
+              ) : null}
+              {userId && detail.profile.id !== userId ? (
+                <Button
+                  size="sm"
                   variant={profiles.find((p) => p.id === detail.profile.id)?.isFollowedByViewer ? "secondary" : "primary"}
                   disabled={followBusy}
                   onClick={() => {
@@ -469,11 +480,23 @@ export default function CommunityScreen({ initialUser }: { initialUser: User }) 
             <Button variant="ghost" onClick={() => setMobileMode("list")}>
               Back
             </Button>
-            <Link href="/reviews" className="block">
-              <Button className="w-full" variant="primary">
-                Review
+            {userId && detail && detail.profile.id !== userId ? (
+              <Button
+                className="w-full"
+                variant="secondary"
+                onClick={() => {
+                  window.location.href = `/map?chatUser=${encodeURIComponent(detail.profile.id)}`;
+                }}
+              >
+                Chat
               </Button>
-            </Link>
+            ) : (
+              <Link href="/reviews" className="block">
+                <Button className="w-full" variant="primary">
+                  Review
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       )}
@@ -495,4 +518,3 @@ export default function CommunityScreen({ initialUser }: { initialUser: User }) 
     </main>
   );
 }
-

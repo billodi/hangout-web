@@ -35,6 +35,14 @@ type ChatMessageRow = {
   author: { id: string; displayName: string; avatarUrl: string | null };
 };
 
+type ChatProfilePick = {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  bio: string;
+  isCurrentUser: boolean;
+};
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers);
   if (!headers.has("Content-Type") && options?.body) headers.set("Content-Type", "application/json");
@@ -170,6 +178,8 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
   const [chatMessageBusy, setChatMessageBusy] = useState(false);
   const [chatBody, setChatBody] = useState("");
   const [chatTargetUserId, setChatTargetUserId] = useState("");
+  const [chatProfileQuery, setChatProfileQuery] = useState("");
+  const [chatProfiles, setChatProfiles] = useState<ChatProfilePick[]>([]);
 
   async function refreshNotifications() {
     try {
@@ -237,6 +247,21 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
     }
   }
 
+  async function startChatWithUser(userId: string) {
+    if (!userId) return;
+    try {
+      const created = await apiFetch<{ threadId: string }>("/api/chats", {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      });
+      setSelectedChatId(created.threadId);
+      await refreshChats();
+      await refreshChatMessages(created.threadId);
+    } catch {
+      // ignore
+    }
+  }
+
   async function sendChatMessage() {
     const threadId = selectedChatId;
     const body = chatBody.trim();
@@ -259,6 +284,38 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
     void refreshChats();
     const t = window.setInterval(() => void refreshChats(), 20_000);
     return () => window.clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (!chatOpen) return;
+    void (async () => {
+      try {
+        const rows = await apiFetch<ChatProfilePick[]>("/api/profiles", { cache: "no-store" });
+        setChatProfiles(rows.filter((row) => !row.isCurrentUser));
+      } catch {
+        setChatProfiles([]);
+      }
+    })();
+  }, [chatOpen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const fromProfileUser = url.searchParams.get("chatUser");
+    const fromProfileThread = url.searchParams.get("chat");
+    if (!fromProfileUser && !fromProfileThread) return;
+    setChatOpen(true);
+    if (fromProfileUser) {
+      setChatTargetUserId(fromProfileUser);
+      void startChatWithUser(fromProfileUser);
+    } else if (fromProfileThread) {
+      setSelectedChatId(fromProfileThread);
+      void refreshChats();
+      void refreshChatMessages(fromProfileThread);
+    }
+    url.searchParams.delete("chatUser");
+    url.searchParams.delete("chat");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   }, []);
 
   useEffect(() => {
@@ -498,16 +555,40 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
 
       <Modal open={chatOpen} title="Chats" onClose={() => setChatOpen(false)} size="lg">
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
+          <div className="space-y-2">
             <input
-              value={chatTargetUserId}
-              onChange={(e) => setChatTargetUserId(e.target.value)}
-              placeholder="Start chat by user ID"
+              value={chatProfileQuery}
+              onChange={(e) => setChatProfileQuery(e.target.value)}
+              placeholder="Search profiles to chat"
               className="w-full rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] bg-transparent px-3 py-2 text-sm outline-none"
             />
-            <button type="button" className="tab-chip tab-chip-active" onClick={() => void startChat()}>
-              Start
-            </button>
+            <div className="max-h-28 overflow-auto rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_65%,transparent)] p-1">
+              {chatProfiles
+                .filter((p) => `${p.displayName} ${p.bio}`.toLowerCase().includes(chatProfileQuery.trim().toLowerCase()))
+                .slice(0, 8)
+                .map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="flex w-full items-center justify-between rounded-[var(--radius-sm)] px-2 py-1.5 text-left text-sm hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
+                    onClick={() => void startChatWithUser(p.id)}
+                  >
+                    <span className="truncate">{p.displayName}</span>
+                    <span className="text-[10px] text-[color-mix(in_oklab,var(--muted)_72%,transparent)]">Chat</span>
+                  </button>
+                ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                value={chatTargetUserId}
+                onChange={(e) => setChatTargetUserId(e.target.value)}
+                placeholder="Or paste user ID"
+                className="w-full rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] bg-transparent px-3 py-2 text-sm outline-none"
+              />
+              <button type="button" className="tab-chip tab-chip-active" onClick={() => void startChat()}>
+                Start
+              </button>
+            </div>
           </div>
           <div className="grid gap-3 lg:grid-cols-[260px_1fr]">
             <div className="max-h-[60vh] space-y-2 overflow-auto pr-1">
