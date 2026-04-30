@@ -94,7 +94,7 @@ export default function Modal({
         aria-labelledby={titleId}
         className={cn(
           "w-full max-h-[90vh] overflow-auto rounded-[var(--radius-lg)] border border-[var(--border)] " +
-            "bg-[linear-gradient(145deg,color-mix(in_oklab,var(--surface)_92%,var(--accent2)_8%),color-mix(in_oklab,var(--surface)_84%,#2fc6ff_16%))] " +
+            "bg-[linear-gradient(155deg,color-mix(in_oklab,var(--surface)_94%,#fff_6%),color-mix(in_oklab,var(--surface2)_80%,var(--accent2)_20%))] " +
             "[box-shadow:var(--shadow),var(--shadow-inset)] backdrop-blur-[var(--blur)] outline-none",
           position === "offsetTop"
             ? "max-h-[calc(100dvh-12rem-env(safe-area-inset-bottom))] sm:max-h-[calc(100dvh-13rem)] lg:max-h-[calc(100dvh-14rem)]"
@@ -102,7 +102,7 @@ export default function Modal({
           sizes[size],
         )}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-[color-mix(in_oklab,var(--border)_75%,transparent)] px-4 py-3">
+        <div className="flex items-start justify-between gap-3 border-b border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-4 py-3">
           <div>
             <h2 id={titleId} className="text-lg font-semibold" data-heading="true">
               {title}
