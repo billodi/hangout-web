@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { LEGACY_SESSION_COOKIE, SESSION_COOKIE, SESSION_COOKIE_PREFIX } from "@/lib/cookieNames";
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const res = NextResponse.next();
   const cookies = req.cookies.getAll();
   const hasActiveCookie = cookies.some((cookie) => cookie.name === SESSION_COOKIE);
