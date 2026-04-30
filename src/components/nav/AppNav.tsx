@@ -199,6 +199,12 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
   const [chatProfileQuery, setChatProfileQuery] = useState("");
   const [chatProfiles, setChatProfiles] = useState<ChatProfilePick[]>([]);
   const [navUser, setNavUser] = useState<NavUser>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [authName, setAuthName] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
 
   async function refreshNotifications() {
     try {
@@ -418,6 +424,28 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
     }
   }
 
+  async function submitAuth() {
+    setAuthBusy(true);
+    try {
+      const endpoint = authMode === "login" ? "/api/auth/login" : "/api/auth/signup";
+      const body =
+        authMode === "login"
+          ? { email: authEmail, password: authPassword }
+          : { displayName: authName, email: authEmail, password: authPassword };
+      const data = await apiFetch<{ user: NavUser }>(endpoint, { method: "POST", body: JSON.stringify(body) });
+      setNavUser(data.user ?? null);
+      setAuthPassword("");
+      setAuthOpen(false);
+      await Promise.all([refreshNotifications(), refreshChats()]);
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  function startGoogleLogin() {
+    window.location.href = "/api/auth/google/start";
+  }
+
   return (
     <>
       <header className="relative z-20 mx-auto w-full max-w-[1500px] px-3 pt-3 lg:px-8 lg:pt-8">
@@ -496,12 +524,13 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
                   <span className="max-w-[110px] truncate">{navUser.displayName}</span>
                 </Link>
               ) : (
-                <Link
-                  href="/profile"
+                <button
+                  type="button"
+                  onClick={() => setAuthOpen(true)}
                   className="rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-2.5 py-1.5 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
                 >
                   Login
-                </Link>
+                </button>
               )}
               <ThemeToggle />
             </div>
@@ -535,12 +564,13 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
                     <span className="max-w-[72px] truncate">{navUser.displayName}</span>
                   </Link>
                 ) : (
-                  <Link
-                    href="/profile"
+                  <button
+                    type="button"
+                    onClick={() => setAuthOpen(true)}
                     className="rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-2 py-1.5 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
                   >
                     Login
-                  </Link>
+                  </button>
                 )}
                 <ThemeToggle />
               </div>
@@ -733,6 +763,50 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
               )}
             </div>
           </div>
+        </div>
+      </Modal>
+
+      <Modal open={authOpen} title={authMode === "login" ? "Welcome back" : "Join BilliXa"} onClose={() => setAuthOpen(false)} size="sm" position="offsetTop">
+        <div className="space-y-3">
+          {authMode === "signup" ? (
+            <input
+              value={authName}
+              onChange={(e) => setAuthName(e.target.value)}
+              placeholder="Display name"
+              className="w-full rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] bg-transparent px-3 py-2 text-sm outline-none"
+            />
+          ) : null}
+          <input
+            value={authEmail}
+            onChange={(e) => setAuthEmail(e.target.value)}
+            placeholder="Email"
+            className="w-full rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] bg-transparent px-3 py-2 text-sm outline-none"
+          />
+          <input
+            type="password"
+            value={authPassword}
+            onChange={(e) => setAuthPassword(e.target.value)}
+            placeholder="Password"
+            className="w-full rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] bg-transparent px-3 py-2 text-sm outline-none"
+          />
+          <button
+            type="button"
+            className="tab-chip tab-chip-active w-full"
+            disabled={authBusy}
+            onClick={() => void submitAuth()}
+          >
+            {authMode === "login" ? "Sign in" : "Create account"}
+          </button>
+          <button type="button" className="tab-chip w-full" onClick={startGoogleLogin}>
+            Continue with Google
+          </button>
+          <button
+            type="button"
+            className="w-full text-center text-sm font-semibold text-[color-mix(in_oklab,var(--accent2)_70%,var(--text)_30%)] underline underline-offset-4"
+            onClick={() => setAuthMode((p) => (p === "login" ? "signup" : "login"))}
+          >
+            {authMode === "login" ? "Need an account? Sign up" : "Already have an account? Login"}
+          </button>
         </div>
       </Modal>
 
