@@ -771,7 +771,7 @@ export default function MapScreen({
         <div ref={mapElRef} className="h-[64vh] rounded-[var(--radius-lg)] overflow-hidden border border-[color-mix(in_oklab,var(--border)_75%,transparent)]" />
       </div>
 
-      <Sheet open={mobileSheetOpen} title="Activities" onClose={() => setMobileSheetOpen(false)} height="full">
+      <Sheet open={mobileSheetOpen} title="Activities" onClose={() => setMobileSheetOpen(false)} height="full" position="offsetTop">
         <div className="space-y-3">
           <Button className="w-full" variant="primary" onClick={() => setMobileSheetOpen(false)}>
             Back to map

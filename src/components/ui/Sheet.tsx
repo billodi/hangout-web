@@ -9,12 +9,14 @@ export default function Sheet({
   children,
   onClose,
   height = "auto",
+  position = "default",
 }: {
   open: boolean;
   title: string;
   children: React.ReactNode;
   onClose: () => void;
   height?: "auto" | "half" | "full";
+  position?: "default" | "offsetTop";
 }) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -51,7 +53,12 @@ export default function Sheet({
         className="pointer-events-auto absolute inset-0 border-0 bg-black/40 backdrop-blur-md cursor-default"
         onClick={onClose}
       />
-      <div className="pointer-events-none relative z-[1] flex w-full justify-center px-0 pb-[env(safe-area-inset-bottom)]">
+      <div
+        className={cn(
+          "pointer-events-none relative z-[1] flex w-full justify-center px-0 pb-[env(safe-area-inset-bottom)]",
+          position === "offsetTop" ? "pt-20 sm:pt-24 lg:pt-28" : null,
+        )}
+      >
         <div
           ref={panelRef}
           tabIndex={-1}
@@ -62,6 +69,9 @@ export default function Sheet({
             "pointer-events-auto w-full max-w-2xl rounded-t-[28px] border border-[var(--border)] " +
               "bg-[linear-gradient(145deg,color-mix(in_oklab,var(--surface)_92%,var(--accent2)_8%),color-mix(in_oklab,var(--surface)_84%,#2fc6ff_16%))] " +
               "[box-shadow:var(--shadow),var(--shadow-inset)] backdrop-blur-[var(--blur)] outline-none touch-manipulation",
+            position === "offsetTop" && height === "full"
+              ? "h-[calc(100dvh-12rem-env(safe-area-inset-bottom))] sm:h-[calc(100dvh-13rem)] lg:h-[calc(100dvh-14rem)]"
+              : null,
             heights[height],
           )}
         >
