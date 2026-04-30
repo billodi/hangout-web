@@ -1,4 +1,4 @@
-const CACHE_NAME = "billixa-shell-v4";
+const CACHE_NAME = "billixa-shell-v5";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icon-192.svg", "/icon-512.svg", "/apple-touch-icon.svg"];
 const APP_SHELL_PATHS = new Set(APP_SHELL);
 
@@ -73,6 +73,44 @@ self.addEventListener("fetch", (event) => {
         .catch(async () => {
           return (await caches.match(event.request)) ?? new Response("Offline", { status: 503, statusText: "Offline" });
         });
+    }),
+  );
+});
+
+self.addEventListener("push", (event) => {
+  let payload = null;
+  try {
+    payload = event.data ? event.data.json() : null;
+  } catch {
+    payload = null;
+  }
+  const title = payload?.title || "BilliXa";
+  const body = payload?.body || "You have a new update.";
+  const href = payload?.href || "/map";
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      data: { href },
+      icon: "/icon-192.svg",
+      badge: "/icon-192.svg",
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const href = event.notification?.data?.href || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsArr) => {
+      for (const client of clientsArr) {
+        if ("focus" in client) {
+          client.focus();
+          client.navigate(href);
+          return;
+        }
+      }
+      return self.clients.openWindow(href);
     }),
   );
 });

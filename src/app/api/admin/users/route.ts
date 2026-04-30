@@ -6,7 +6,7 @@ import { users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 
-type Action = "ban" | "unban" | "set_role" | "delete";
+type Action = "ban" | "unban" | "set_role" | "delete" | "verify" | "unverify";
 
 export async function POST(req: Request) {
   const currentUser = await getCurrentUser();
@@ -97,6 +97,18 @@ export async function POST(req: Request) {
       // Hard delete user and all their data
       await db.delete(users).where(eq(users.id, userId));
       return Response.json({ success: true, message: "User deleted" });
+    }
+
+    case "verify": {
+      if (!userId) return Response.json({ error: "userId is required" }, { status: 400 });
+      await db.update(users).set({ verified: true }).where(eq(users.id, userId));
+      return Response.json({ success: true, message: "User verified" });
+    }
+
+    case "unverify": {
+      if (!userId) return Response.json({ error: "userId is required" }, { status: 400 });
+      await db.update(users).set({ verified: false }).where(eq(users.id, userId));
+      return Response.json({ success: true, message: "User unverified" });
     }
 
     default:

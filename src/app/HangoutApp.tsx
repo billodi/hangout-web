@@ -21,12 +21,23 @@ type Activity = {
   limit: number | null;
   createdAt: string;
   joined: boolean;
+  waitlisted?: boolean;
+  checkedIn?: boolean;
 };
 
 type Badge = {
   id: string;
   label: string;
   description: string;
+};
+
+type ActivityMessage = {
+  id: string;
+  activityId: string;
+  body: string;
+  createdAt: string;
+  authorUserId: string;
+  author: { id: string; displayName: string; avatarUrl: string | null };
 };
 
 type User = {
@@ -174,6 +185,17 @@ function formatWhen(iso: string): string {
   });
 }
 
+function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6371;
+  const toRad = (n: number) => (n * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const s1 = Math.sin(dLat / 2);
+  const s2 = Math.sin(dLng / 2);
+  const aa = s1 * s1 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * s2 * s2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(aa)));
+}
+
 function toDateInput(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -307,9 +329,15 @@ export default function HangoutApp({
 
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<"all" | ActivityType>("all");
-  const [sortBy, setSortBy] = useState<"soonest" | "newest">("soonest");
+  const [sortBy, setSortBy] = useState<"soonest" | "newest" | "trending">("soonest");
   const [onlyOpen, setOnlyOpen] = useState(false);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(preferredActivityId ?? initialActivities[0]?.id ?? null);
+
+  const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null);
+  const [nearMe, setNearMe] = useState(false);
+  const [radiusKm, setRadiusKm] = useState(25);
+  const [savedSearches, setSavedSearches] = useState<Array<{ id: string; name: string; query: any }>>([]);
+  const [savedSearchId, setSavedSearchId] = useState<string>("");
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -336,6 +364,34 @@ export default function HangoutApp({
   const [editActivityLat, setEditActivityLat] = useState("");
   const [editActivityLng, setEditActivityLng] = useState("");
 
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("billixa-draft-activity");
+      if (!raw) return;
+      const d = JSON.parse(raw) as any;
+      if (typeof d.title === "string") setTitle(d.title);
+      if (typeof d.description === "string") setDescription(d.description);
+      if (typeof d.date === "string") setDate(d.date);
+      if (typeof d.time === "string") setTime(d.time);
+      if (d.type === "chill" || d.type === "active" || d.type === "help") setType(d.type);
+      if (typeof d.limit === "string") setLimit(d.limit);
+      if (typeof d.pinLat === "string") setPinLat(d.pinLat);
+      if (typeof d.pinLng === "string") setPinLng(d.pinLng);
+      if (typeof d.pinSearchQuery === "string") setPinSearchQuery(d.pinSearchQuery);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const payload = { title, description, date, time, type, limit, pinLat, pinLng, pinSearchQuery };
+      window.localStorage.setItem("billixa-draft-activity", JSON.stringify(payload));
+    } catch {
+      // ignore
+    }
+  }, [title, description, date, time, type, limit, pinLat, pinLng, pinSearchQuery]);
+
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [authName, setAuthName] = useState("");
   const [authEmail, setAuthEmail] = useState("");
@@ -361,6 +417,11 @@ export default function HangoutApp({
   const [galleryLat, setGalleryLat] = useState("");
   const [galleryLng, setGalleryLng] = useState("");
 
+  const [messages, setMessages] = useState<ActivityMessage[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [messageBody, setMessageBody] = useState("");
+  const [messageSending, setMessageSending] = useState(false);
+
   const mapElRef = useRef<HTMLDivElement | null>(null);
   const pickerMapElRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -374,6 +435,65 @@ export default function HangoutApp({
     [activities, selectedActivityId],
   );
 
+  useEffect(() => {
+    const activityId = selectedActivityId;
+    if (!activityId) {
+      setMessages([]);
+      return;
+    }
+    let cancelled = false;
+    setMessagesLoading(true);
+    void (async () => {
+      try {
+        const rows = await apiFetch<ActivityMessage[]>(`/api/activities/${activityId}/messages`, { cache: "no-store" });
+        if (!cancelled) setMessages(rows);
+      } catch {
+        if (!cancelled) setMessages([]);
+      } finally {
+        if (!cancelled) setMessagesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedActivityId]);
+
+  async function sendMessage() {
+    const activityId = selectedActivityId;
+    const text = messageBody.trim();
+    if (!activityId || !text) return;
+    if (!userId) {
+      setToast({ tone: "error", message: "Login required" });
+      setShowAuthModal(true);
+      return;
+    }
+
+    setMessageSending(true);
+    try {
+      const created = await apiFetch<ActivityMessage>(`/api/activities/${activityId}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ body: text }),
+      });
+      setMessages((prev) => [created, ...prev].slice(0, 60));
+      setMessageBody("");
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not send message" });
+    } finally {
+      setMessageSending(false);
+    }
+  }
+
+  async function deleteMessage(messageId: string) {
+    const activityId = selectedActivityId;
+    if (!activityId) return;
+    try {
+      await apiFetch<{ ok: boolean }>(`/api/activities/${activityId}/messages/${messageId}`, { method: "DELETE" });
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not delete message" });
+    }
+  }
+
   const filteredActivities = useMemo(() => {
     const query = search.trim().toLowerCase();
     const list = activities.filter((activity) => {
@@ -382,6 +502,11 @@ export default function HangoutApp({
       if (filterType !== "all" && activity.type !== filterType) return false;
       if (onlyOpen && activity.limit !== null && activity.going >= activity.limit) return false;
       if (onlyOpen && isClosedByWhen(activity.whenISO, nowTick)) return false;
+      if (nearMe && geo) {
+        if (typeof activity.lat !== "number" || typeof activity.lng !== "number") return false;
+        const km = haversineKm(geo.lat, geo.lng, activity.lat, activity.lng);
+        if (!Number.isFinite(km) || km > radiusKm) return false;
+      }
       return true;
     });
 
@@ -389,11 +514,33 @@ export default function HangoutApp({
       if (sortBy === "newest") {
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       }
+      if (sortBy === "trending") {
+        const now = nowTick > 0 ? nowTick : Date.now();
+        const score = (x: Activity) => {
+          const created = new Date(x.createdAt).getTime();
+          const ageH = Math.max(1, (now - created) / 3_600_000);
+          const recency = 10 / ageH;
+          const attendance = (x.going ?? 0) * 2.5;
+          return attendance + recency;
+        };
+        return score(b) - score(a);
+      }
       return new Date(a.whenISO).getTime() - new Date(b.whenISO).getTime();
     });
 
     return list;
-  }, [activities, search, filterType, sortBy, onlyOpen, nowTick]);
+  }, [activities, search, filterType, sortBy, onlyOpen, nowTick, nearMe, geo, radiusKm]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const rows = await apiFetch<Array<{ id: string; name: string; query: any }>>("/api/saved-searches", { cache: "no-store" });
+        setSavedSearches(rows);
+      } catch {
+        setSavedSearches([]);
+      }
+    })();
+  }, []);
 
   const availableActivityReviewOptions = useMemo(() => {
     if (!profileDetail?.reviewContext) return [];
@@ -428,6 +575,61 @@ export default function HangoutApp({
     const timer = window.setInterval(() => setNowTick(Date.now()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  async function locateMe() {
+    if (!("geolocation" in navigator)) {
+      setToast({ tone: "error", message: "Geolocation not supported." });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setGeo({ lat, lng });
+        setNearMe(true);
+        mapRef.current?.setView([lat, lng], 12);
+      },
+      () => setToast({ tone: "error", message: "Could not access location." }),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 },
+    );
+  }
+
+  async function saveSearchPreset() {
+    if (!userId) {
+      setToast({ tone: "error", message: "Login required" });
+      setShowAuthModal(true);
+      return;
+    }
+    const name = window.prompt("Saved search name:");
+    if (!name) return;
+    try {
+      const created = await apiFetch<{ id: string; name: string; query: any }>("/api/saved-searches", {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          query: { search, filterType, sortBy, onlyOpen, nearMe, radiusKm },
+        }),
+      });
+      setSavedSearches((prev) => [created, ...prev]);
+      setSavedSearchId(created.id);
+      setToast({ tone: "info", message: "Saved search added." });
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not save search" });
+    }
+  }
+
+  function applySavedSearch(id: string) {
+    const preset = savedSearches.find((s) => s.id === id);
+    if (!preset) return;
+    setSavedSearchId(id);
+    const q = preset.query ?? {};
+    setSearch(typeof q.search === "string" ? q.search : "");
+    setFilterType(q.filterType === "chill" || q.filterType === "active" || q.filterType === "help" || q.filterType === "all" ? q.filterType : "all");
+    setSortBy(q.sortBy === "newest" || q.sortBy === "trending" || q.sortBy === "soonest" ? q.sortBy : "soonest");
+    setOnlyOpen(!!q.onlyOpen);
+    setNearMe(!!q.nearMe);
+    setRadiusKm(typeof q.radiusKm === "number" && Number.isFinite(q.radiusKm) ? q.radiusKm : 25);
+  }
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
@@ -908,6 +1110,11 @@ function selectPinResult(result: NominatimResult) {
       setLimit("");
       setPinSearchQuery("");
       setPinSearchResults([]);
+      try {
+        window.localStorage.removeItem("billixa-draft-activity");
+      } catch {
+        // ignore
+      }
     } catch (error) {
       setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not create activity" });
     }
@@ -1332,6 +1539,7 @@ function selectPinResult(result: NominatimResult) {
                   <select value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)} className="field">
                     <option value="soonest">Soonest</option>
                     <option value="newest">Newest</option>
+                    <option value="trending">Trending</option>
                   </select>
                 </div>
 
@@ -1339,6 +1547,48 @@ function selectPinResult(result: NominatimResult) {
                   <input type="checkbox" checked={onlyOpen} onChange={(event) => setOnlyOpen(event.target.checked)} className="accent-orange-400" />
                   Only show activities with open seats
                 </label>
+
+                <div className="rounded-2xl border border-white/15 bg-black/15 p-2.5 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold">Near me</p>
+                    <button type="button" className="link-btn" onClick={() => void locateMe()}>
+                      Locate
+                    </button>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm text-white/80">
+                    <input type="checkbox" checked={nearMe} onChange={(e) => setNearMe(e.target.checked)} className="accent-orange-400" />
+                    Filter by distance
+                  </label>
+                  <select value={radiusKm} onChange={(e) => setRadiusKm(Number.parseInt(e.target.value, 10))} className="field" disabled={!nearMe}>
+                    <option value={5}>Within 5 km</option>
+                    <option value={10}>Within 10 km</option>
+                    <option value={25}>Within 25 km</option>
+                    <option value={50}>Within 50 km</option>
+                    <option value={100}>Within 100 km</option>
+                  </select>
+                  {!geo && nearMe ? <p className="text-xs text-white/55">Tip: press Locate to set your position.</p> : null}
+                </div>
+
+                <div className="rounded-2xl border border-white/15 bg-black/15 p-2.5 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold">Saved searches</p>
+                    <button type="button" className="link-btn" onClick={() => void saveSearchPreset()}>
+                      Save current
+                    </button>
+                  </div>
+                  <select
+                    value={savedSearchId}
+                    onChange={(e) => applySavedSearch(e.target.value)}
+                    className="field"
+                  >
+                    <option value="">Select preset…</option>
+                    {savedSearches.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </section>
 
               <section className="space-y-2.5">
@@ -1463,14 +1713,98 @@ function selectPinResult(result: NominatimResult) {
                   <button
                     type="button"
                     className="action-primary w-full mt-3"
-                    disabled={isClosedByWhen(selectedActivity.whenISO, nowTick) || (selectedActivity.joined && selectedActivity.creatorId === userId)}
+                    disabled={
+                      isClosedByWhen(selectedActivity.whenISO, nowTick) ||
+                      (selectedActivity.joined && selectedActivity.creatorId === userId) ||
+                      (!selectedActivity.joined && selectedActivity.limit !== null && selectedActivity.going >= selectedActivity.limit)
+                    }
                     onClick={() => void toggleJoin(selectedActivity)}
                   >
                     {selectedActivity.joined
                       ? selectedActivity.creatorId === userId
                         ? "Host"
                         : "Leave"
-                      : "Join"}
+                      : selectedActivity.limit !== null && selectedActivity.going >= selectedActivity.limit
+                        ? "Full"
+                        : "Join"}
+                  </button>
+
+                  {!selectedActivity.joined && selectedActivity.limit !== null && selectedActivity.going >= selectedActivity.limit ? (
+                    <button
+                      type="button"
+                      className="action-ghost w-full mt-2"
+                      onClick={() => {
+                        if (!userId) {
+                          setToast({ tone: "error", message: "Login required" });
+                          setShowAuthModal(true);
+                          return;
+                        }
+                        void apiFetch<{ waitlisted: boolean }>(`/api/activities/${selectedActivity.id}/waitlist`, { method: "POST" })
+                          .then((res) => {
+                            setActivities((prev) => prev.map((a) => (a.id === selectedActivity.id ? { ...a, waitlisted: res.waitlisted } : a)));
+                            setToast({ tone: "info", message: res.waitlisted ? "Added to waitlist." : "Removed from waitlist." });
+                          })
+                          .catch((error) => setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not update waitlist" }));
+                      }}
+                    >
+                      {selectedActivity.waitlisted ? "Leave waitlist" : "Join waitlist"}
+                    </button>
+                  ) : null}
+
+                  {selectedActivity.joined ? (
+                    <button
+                      type="button"
+                      className="action-ghost w-full mt-2"
+                      onClick={() => {
+                        if (!userId) return;
+                        void apiFetch<{ checkedIn: boolean }>(`/api/activities/${selectedActivity.id}/checkin`, { method: "POST" })
+                          .then((res) => {
+                            setActivities((prev) => prev.map((a) => (a.id === selectedActivity.id ? { ...a, checkedIn: res.checkedIn } : a)));
+                            setToast({ tone: "info", message: res.checkedIn ? "Checked in." : "Check-in removed." });
+                          })
+                          .catch((error) => setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not check in" }));
+                      }}
+                    >
+                      {selectedActivity.checkedIn ? "Undo check-in" : "Check in"}
+                    </button>
+                  ) : null}
+
+                  {!isSelectedActivityOwner ? (
+                    <button
+                      type="button"
+                      className="action-ghost w-full mt-2"
+                      onClick={() => {
+                        if (!userId) {
+                          setToast({ tone: "error", message: "Login required" });
+                          setShowAuthModal(true);
+                          return;
+                        }
+                        const reason = window.prompt("Report reason (required):");
+                        if (!reason) return;
+                        void apiFetch("/api/reports", {
+                          method: "POST",
+                          body: JSON.stringify({ targetType: "activity", targetId: selectedActivity.id, reason }),
+                        })
+                          .then(() => setToast({ tone: "info", message: "Report submitted." }))
+                          .catch((error) => setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not report" }));
+                      }}
+                    >
+                      Report activity
+                    </button>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    className="action-ghost w-full mt-2"
+                    onClick={() => {
+                      const url = `${window.location.origin}/a/${selectedActivity.id}`;
+                      void navigator.clipboard
+                        ?.writeText(url)
+                        .then(() => setToast({ tone: "info", message: "Share link copied." }))
+                        .catch(() => setToast({ tone: "info", message: url }));
+                    }}
+                  >
+                    Copy share link
                   </button>
 
                   {isSelectedActivityOwner ? (
@@ -1483,8 +1817,92 @@ function selectPinResult(result: NominatimResult) {
                           Delete
                         </button>
                       </div>
+                      <button
+                        type="button"
+                        className="action-ghost w-full"
+                        onClick={() => {
+                          if (!userId) return;
+                          const when = new Date(selectedActivity.whenISO);
+                          when.setDate(when.getDate() + 7);
+                          void apiFetch<Activity>("/api/activities", {
+                            method: "POST",
+                            body: JSON.stringify({
+                              title: selectedActivity.title,
+                              description: selectedActivity.description,
+                              location: selectedActivity.location,
+                              lat: selectedActivity.lat,
+                              lng: selectedActivity.lng,
+                              whenISO: when.toISOString(),
+                              type: selectedActivity.type,
+                              limit: selectedActivity.limit,
+                            }),
+                          })
+                            .then((created) => {
+                              setActivities((prev) => [...prev, created]);
+                              setSelectedActivityId(created.id);
+                              setToast({ tone: "info", message: "Duplicated for next week." });
+                            })
+                            .catch((error) => setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not duplicate" }));
+                        }}
+                      >
+                        Duplicate +7 days
+                      </button>
                     </div>
                   ) : null}
+
+                  <div className="mt-3 rounded-2xl border border-white/15 bg-black/15 p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="text-sm font-semibold">Chat</h4>
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={() => selectedActivityId && void apiFetch<ActivityMessage[]>(`/api/activities/${selectedActivityId}/messages`).then(setMessages).catch(() => {})}
+                      >
+                        Refresh
+                      </button>
+                    </div>
+
+                    <div className="mt-2 max-h-44 overflow-auto space-y-2 pr-1">
+                      {messagesLoading ? (
+                        <p className="text-xs text-white/60">Loading…</p>
+                      ) : messages.length === 0 ? (
+                        <p className="text-xs text-white/60">No messages yet.</p>
+                      ) : (
+                        messages.map((m) => (
+                          <div key={m.id} className="rounded-xl border border-white/10 bg-white/5 p-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs font-semibold">{m.author?.displayName ?? "User"}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-[10px] text-white/50">{formatWhen(m.createdAt)}</p>
+                                {userId && (m.authorUserId === userId || isSelectedActivityOwner || user?.role === "admin" || user?.role === "owner" || user?.role === "moderator") ? (
+                                  <button type="button" className="text-[10px] text-rose-200/90 hover:text-rose-200" onClick={() => void deleteMessage(m.id)}>
+                                    Delete
+                                  </button>
+                                ) : null}
+                              </div>
+                            </div>
+                            <p className="mt-1 text-xs text-white/80 whitespace-pre-wrap break-words">{m.body}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        value={messageBody}
+                        onChange={(e) => setMessageBody(e.target.value)}
+                        placeholder={userId ? "Message…" : "Login to chat"}
+                        className="field flex-1"
+                        disabled={!userId || messageSending}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void sendMessage();
+                        }}
+                      />
+                      <button type="button" className="action-ghost whitespace-nowrap" disabled={!userId || messageSending || !messageBody.trim()} onClick={() => void sendMessage()}>
+                        {messageSending ? "…" : "Send"}
+                      </button>
+                    </div>
+                  </div>
                 </article>
               ) : null}
             </aside>

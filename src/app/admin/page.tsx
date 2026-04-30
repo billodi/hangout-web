@@ -19,6 +19,7 @@ interface AdminUser {
   avatarUrl: string | null;
   isAdmin: number;
   role: string;
+  verified?: boolean;
   createdAt: string;
 }
 
@@ -34,13 +35,26 @@ interface AdminActivity {
   creatorName: string | null;
 }
 
+interface AdminReport {
+  id: string;
+  reporterUserId: string;
+  targetType: string;
+  targetId: string;
+  reason: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  reporter: { id: string; displayName: string; email: string };
+}
+
 export default function AdminApp() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [activities, setActivities] = useState<AdminActivity[]>([]);
+  const [reports, setReports] = useState<AdminReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "users" | "activities">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "users" | "activities" | "reports">("overview");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   async function loadAdminData() {
@@ -55,6 +69,14 @@ export default function AdminApp() {
       setStats(data.stats);
       setUsers(data.users);
       setActivities(data.recentActivities);
+
+      const reportsRes = await fetch("/api/admin/reports", { credentials: "include" });
+      if (reportsRes.ok) {
+        const reportsData = await reportsRes.json();
+        setReports(reportsData.reports ?? []);
+      } else {
+        setReports([]);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
@@ -150,7 +172,7 @@ export default function AdminApp() {
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2 border-t border-[color-mix(in_oklab,var(--border)_75%,transparent)] pt-3">
-          {(["overview", "users", "activities"] as const).map((tab) => (
+          {(["overview", "users", "activities", "reports"] as const).map((tab) => (
             <Button
               key={tab}
               size="sm"
@@ -260,6 +282,14 @@ export default function AdminApp() {
                                 <option value="admin">Admin</option>
                                 <option value="owner">Owner</option>
                               </Select>
+                              <Button
+                                size="sm"
+                                variant={user.verified ? "secondary" : "primary"}
+                                onClick={() => performAction("/api/admin/users", { action: user.verified ? "unverify" : "verify", userId: user.id })}
+                                disabled={!!actionLoading}
+                              >
+                                {user.verified ? "Unverify" : "Verify"}
+                              </Button>
                             </>
                           )}
                         </div>
@@ -308,6 +338,67 @@ export default function AdminApp() {
                     >
                       Delete
                     </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "reports" && (
+          <div className="shell-panel p-4">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold" data-heading="true">
+                Reports queue
+              </h2>
+              <p className="text-xs text-[color-mix(in_oklab,var(--muted)_70%,transparent)]">{reports.length} recent</p>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {reports.length === 0 ? (
+                <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">No reports yet.</p>
+              ) : (
+                reports.map((r) => (
+                  <div
+                    key={r.id}
+                    className="rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_80%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_42%,transparent)] p-3"
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold">
+                          {r.targetType} report • <span className="text-[color-mix(in_oklab,var(--accent3)_70%,var(--text)_30%)]">{r.status}</span>
+                        </p>
+                        <p className="mt-1 text-xs text-[color-mix(in_oklab,var(--muted)_75%,transparent)] break-words">
+                          Target: {r.targetId}
+                        </p>
+                        <p className="mt-2 text-sm text-[color-mix(in_oklab,var(--muted)_82%,transparent)]">{r.reason}</p>
+                        <p className="mt-2 text-[11px] text-[color-mix(in_oklab,var(--muted)_65%,transparent)]">
+                          Reporter: {r.reporter.displayName} ({r.reporter.email}) • {formatDate(r.createdAt)}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col gap-2 sm:items-end">
+                        <Select
+                          className="w-[170px] text-xs"
+                          value={r.status}
+                          onChange={(e) => performAction(`/api/admin/reports/${r.id}/action`, { status: e.target.value, action: "status_change" })}
+                          disabled={!!actionLoading}
+                        >
+                          <option value="open">open</option>
+                          <option value="triaged">triaged</option>
+                          <option value="resolved">resolved</option>
+                          <option value="dismissed">dismissed</option>
+                        </Select>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => performAction(`/api/admin/reports/${r.id}/action`, { action: "note", details: "Reviewed" })}
+                          disabled={!!actionLoading}
+                        >
+                          Add note
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 ))
               )}

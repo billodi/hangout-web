@@ -25,6 +25,7 @@ export async function GET() {
       avatarUrl: users.avatarUrl,
       isAdmin: users.isAdmin,
       role: users.role,
+      verified: users.verified,
       createdAt: users.createdAt,
     })
     .from(users)

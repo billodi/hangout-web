@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, or } from "drizzle-orm";
 import { getDb } from "@/db";
-import { sessions, users } from "@/db/schema";
+import { blocks, sessions, users } from "@/db/schema";
 import { SESSION_COOKIE } from "@/lib/cookieNames";
 const SESSION_TTL_DAYS = 30;
 
@@ -120,4 +120,40 @@ export async function deleteSession(sessionId: string) {
 export async function getCurrentSessionId(): Promise<string | null> {
   const cookieStore = await cookies();
   return cookieStore.get(SESSION_COOKIE)?.value ?? null;
+}
+
+export function isStaff(user: AuthedUser | null | undefined): boolean {
+  if (!user) return false;
+  return user.role === "moderator" || user.role === "admin" || user.role === "owner";
+}
+
+export async function requireUser(): Promise<AuthedUser> {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthorized");
+  return user;
+}
+
+export async function requireAdmin(): Promise<AuthedUser> {
+  const user = await requireUser();
+  if (!isStaff(user)) throw new Error("Forbidden");
+  return user;
+}
+
+export async function isBlockedBetween(userAId: string, userBId: string): Promise<boolean> {
+  const db = getDb();
+  const [row] = await db
+    .select({ id: blocks.id })
+    .from(blocks)
+    .where(
+      or(
+        and(eq(blocks.blockerId, userAId), eq(blocks.blockedId, userBId)),
+        and(eq(blocks.blockerId, userBId), eq(blocks.blockedId, userAId)),
+      ),
+    )
+    .limit(1);
+  return !!row;
+}
+
+export async function requireNotBlockedBetween(userAId: string, userBId: string) {
+  if (await isBlockedBetween(userAId, userBId)) throw new Error("Blocked");
 }

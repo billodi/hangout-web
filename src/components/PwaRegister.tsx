@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 
-const SW_URL = "/sw.js?v=4";
-const ACTIVE_CACHE = "billixa-shell-v4";
+const SW_URL = "/sw.js?v=5";
+const ACTIVE_CACHE = "billixa-shell-v5";
 
 export default function PwaRegister() {
   useEffect(() => {
@@ -18,7 +18,7 @@ export default function PwaRegister() {
             const waitingUrl = reg.waiting?.scriptURL ?? "";
             const installingUrl = reg.installing?.scriptURL ?? "";
             const urls = `${activeUrl} ${waitingUrl} ${installingUrl}`;
-            if (urls.includes("/sw.js") && !urls.includes("v=3")) {
+            if (urls.includes("/sw.js") && !urls.includes("v=5")) {
               await reg.unregister();
             }
           }),

@@ -77,6 +77,9 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
   const [editBio, setEditBio] = useState(initialUser?.bio ?? "");
   const [editAvatarUrl, setEditAvatarUrl] = useState(initialUser?.avatarUrl ?? "");
   const [galleryImageUrl, setGalleryImageUrl] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [diaryFile, setDiaryFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState<"avatar" | "diary" | null>(null);
   const [galleryCaption, setGalleryCaption] = useState("");
   const [galleryLocation, setGalleryLocation] = useState("");
   const [galleryLat, setGalleryLat] = useState("");
@@ -130,6 +133,44 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
       setToast({ tone: "info", message: "Profile updated." });
     } catch (error) {
       setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not save profile" });
+    }
+  }
+
+  async function uploadAvatar() {
+    if (!avatarFile) return;
+    setUploading("avatar");
+    try {
+      const fd = new FormData();
+      fd.append("file", avatarFile);
+      const res = await fetch("/api/uploads/avatar", { method: "POST", body: fd, credentials: "include" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Upload failed");
+      setEditAvatarUrl(data.url);
+      setToast({ tone: "info", message: "Avatar uploaded." });
+      setAvatarFile(null);
+    } catch (e) {
+      setToast({ tone: "error", message: e instanceof Error ? e.message : "Upload failed" });
+    } finally {
+      setUploading(null);
+    }
+  }
+
+  async function uploadDiaryImage() {
+    if (!diaryFile) return;
+    setUploading("diary");
+    try {
+      const fd = new FormData();
+      fd.append("file", diaryFile);
+      const res = await fetch("/api/uploads/diary", { method: "POST", body: fd, credentials: "include" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Upload failed");
+      setGalleryImageUrl(data.url);
+      setToast({ tone: "info", message: "Diary image uploaded." });
+      setDiaryFile(null);
+    } catch (e) {
+      setToast({ tone: "error", message: e instanceof Error ? e.message : "Upload failed" });
+    } finally {
+      setUploading(null);
     }
   }
 
@@ -222,6 +263,26 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
               </h2>
               <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Display name" />
               <Input value={editAvatarUrl} onChange={(e) => setEditAvatarUrl(e.target.value)} placeholder="Avatar URL" />
+              <div className="rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] p-3">
+                <p className="text-xs font-semibold text-[color-mix(in_oklab,var(--muted)_88%,transparent)]">Upload avatar (optional)</p>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="mt-2 block w-full text-xs"
+                  onChange={(e) => setAvatarFile(e.target.files?.[0] ?? null)}
+                />
+                <div className="mt-2 flex gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => void uploadAvatar()} disabled={!avatarFile || uploading === "avatar"}>
+                    {uploading === "avatar" ? "Uploading…" : "Upload"}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setAvatarFile(null)} disabled={!avatarFile || uploading === "avatar"}>
+                    Clear
+                  </Button>
+                </div>
+                <p className="mt-2 text-[11px] text-[color-mix(in_oklab,var(--muted)_70%,transparent)]">
+                  Requires `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` on the server.
+                </p>
+              </div>
               <Textarea value={editBio} onChange={(e) => setEditBio(e.target.value)} className="min-h-20" placeholder="Bio" />
               <Button variant="primary" onClick={() => void saveProfile()}>
                 Save
@@ -233,6 +294,23 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
                 Add diary entry
               </h2>
               <Input value={galleryImageUrl} onChange={(e) => setGalleryImageUrl(e.target.value)} placeholder="Image URL" />
+              <div className="rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] p-3">
+                <p className="text-xs font-semibold text-[color-mix(in_oklab,var(--muted)_88%,transparent)]">Upload diary image (optional)</p>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="mt-2 block w-full text-xs"
+                  onChange={(e) => setDiaryFile(e.target.files?.[0] ?? null)}
+                />
+                <div className="mt-2 flex gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => void uploadDiaryImage()} disabled={!diaryFile || uploading === "diary"}>
+                    {uploading === "diary" ? "Uploading…" : "Upload"}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setDiaryFile(null)} disabled={!diaryFile || uploading === "diary"}>
+                    Clear
+                  </Button>
+                </div>
+              </div>
               <Input value={galleryCaption} onChange={(e) => setGalleryCaption(e.target.value)} placeholder="Caption" />
               <div>
                 <p className="mb-1 text-xs font-semibold text-[color-mix(in_oklab,var(--muted)_88%,transparent)]">Activity (optional)</p>

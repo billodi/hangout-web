@@ -19,6 +19,7 @@ type ProfileSummary = {
   avatarUrl: string | null;
   isAdmin: number;
   role: string;
+  verified?: boolean;
   visibleRole: "owner" | "admin" | "moderator" | null;
   createdAt: string;
   createdCount: number;
@@ -28,6 +29,7 @@ type ProfileSummary = {
   avgRating: number | null;
   badges: Badge[];
   isCurrentUser: boolean;
+  isFollowedByViewer: boolean;
 };
 
 type ProfileDetail = {
@@ -38,6 +40,7 @@ type ProfileDetail = {
     avatarUrl: string | null;
     isAdmin: number;
     role: string;
+    verified?: boolean;
     visibleRole: "owner" | "admin" | "moderator" | null;
     createdAt: string;
   };
@@ -132,6 +135,8 @@ export default function CommunityScreen({ initialUser }: { initialUser: User }) 
   const [toast, setToast] = useState<{ tone: ToastTone; message: string } | null>(null);
   const [query, setQuery] = useState("");
   const [mobileMode, setMobileMode] = useState<"list" | "detail">("list");
+  const [followBusy, setFollowBusy] = useState(false);
+  const [blockedIds, setBlockedIds] = useState<Set<string>>(() => new Set());
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -215,6 +220,11 @@ export default function CommunityScreen({ initialUser }: { initialUser: User }) 
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="truncate text-sm font-semibold">{p.displayName}</p>
+                    {p.verified ? (
+                      <span className="shrink-0 rounded-full border border-[color-mix(in_oklab,var(--accent2)_55%,transparent)] bg-[color-mix(in_oklab,var(--accent2)_18%,transparent)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[color-mix(in_oklab,var(--accent2)_78%,var(--text)_22%)]">
+                        Verified
+                      </span>
+                    ) : null}
                     {p.visibleRole ? (
                       <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${roleBadgeClass(p.visibleRole)}`}>
                         {roleBadgeLabel(p.visibleRole)}
@@ -249,6 +259,11 @@ export default function CommunityScreen({ initialUser }: { initialUser: User }) 
                   <h2 className="text-xl font-semibold truncate" data-heading="true">
                     {detail.profile.displayName}
                   </h2>
+                  {detail.profile.verified ? (
+                    <span className="rounded-full border border-[color-mix(in_oklab,var(--accent2)_55%,transparent)] bg-[color-mix(in_oklab,var(--accent2)_18%,transparent)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[color-mix(in_oklab,var(--accent2)_78%,var(--text)_22%)]">
+                      Verified
+                    </span>
+                  ) : null}
                   {detail.profile.visibleRole ? (
                     <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${roleBadgeClass(detail.profile.visibleRole)}`}>
                       {roleBadgeLabel(detail.profile.visibleRole)}
@@ -260,6 +275,75 @@ export default function CommunityScreen({ initialUser }: { initialUser: User }) 
             </div>
 
             <div className="hidden lg:flex items-center gap-2">
+              {userId && detail.profile.id !== userId ? (
+                <Button
+                  size="sm"
+                  variant={profiles.find((p) => p.id === detail.profile.id)?.isFollowedByViewer ? "secondary" : "primary"}
+                  disabled={followBusy}
+                  onClick={() => {
+                    setFollowBusy(true);
+                    void (async () => {
+                      try {
+                        const res = await apiFetch<{ following: boolean }>(`/api/follows/${detail.profile.id}`, { method: "POST" });
+                        setProfiles((prev) => prev.map((p) => (p.id === detail.profile.id ? { ...p, isFollowedByViewer: res.following } : p)));
+                        setToast({ tone: "info", message: res.following ? "Followed." : "Unfollowed." });
+                      } catch (error) {
+                        setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not follow" });
+                      } finally {
+                        setFollowBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  {profiles.find((p) => p.id === detail.profile.id)?.isFollowedByViewer ? "Following" : "Follow"}
+                </Button>
+              ) : null}
+              {userId && detail.profile.id !== userId ? (
+                <Button
+                  size="sm"
+                  variant={blockedIds.has(detail.profile.id) ? "secondary" : "danger"}
+                  disabled={followBusy}
+                  onClick={() => {
+                    setFollowBusy(true);
+                    void (async () => {
+                      try {
+                        const res = await apiFetch<{ blocked: boolean }>(`/api/blocks/${detail.profile.id}`, { method: "POST" });
+                        setBlockedIds((prev) => {
+                          const next = new Set(prev);
+                          if (res.blocked) next.add(detail.profile.id);
+                          else next.delete(detail.profile.id);
+                          return next;
+                        });
+                        setToast({ tone: "info", message: res.blocked ? "Blocked." : "Unblocked." });
+                      } catch (error) {
+                        setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not block" });
+                      } finally {
+                        setFollowBusy(false);
+                      }
+                    })();
+                  }}
+                >
+                  {blockedIds.has(detail.profile.id) ? "Unblock" : "Block"}
+                </Button>
+              ) : null}
+              {userId && detail.profile.id !== userId ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    const reason = window.prompt("Report reason (required):");
+                    if (!reason) return;
+                    void apiFetch("/api/reports", {
+                      method: "POST",
+                      body: JSON.stringify({ targetType: "profile", targetId: detail.profile.id, reason }),
+                    })
+                      .then(() => setToast({ tone: "info", message: "Report submitted." }))
+                      .catch((error) => setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not report" }));
+                  }}
+                >
+                  Report
+                </Button>
+              ) : null}
               <Link href="/reviews">
                 <Button size="sm" variant="secondary">
                   Review

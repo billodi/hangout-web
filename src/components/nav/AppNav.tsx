@@ -4,7 +4,43 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import Button from "@/components/ui/Button";
+import Modal from "@/components/ui/Modal";
 import { cn } from "@/components/ui/cn";
+
+type NotificationRow = {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  href: string | null;
+  readAt: string | null;
+  createdAt: string;
+};
+
+async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers = new Headers(options?.headers);
+  if (!headers.has("Content-Type") && options?.body) headers.set("Content-Type", "application/json");
+  const res = await fetch(path, { ...options, headers, credentials: "include", cache: options?.cache ?? "no-store" });
+  const text = await res.text();
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+  if (!res.ok) {
+    const msg = (data as any)?.error;
+    throw new Error(msg || `Request failed (${res.status})`);
+  }
+  return data as T;
+}
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
 
 type Theme = "light" | "dark" | "system";
 
@@ -88,18 +124,105 @@ function NavIcon({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function AppNav({ active }: { active: "map" | "community" | "profile" | "reviews" | "admin" | null }) {
+export default function AppNav({ active }: { active: "map" | "feed" | "community" | "profile" | "reviews" | "admin" | null }) {
   const pathname = usePathname();
   const inferred: typeof active = useMemo(() => {
     if (!pathname) return null;
     if (pathname.startsWith("/admin")) return "admin";
     if (pathname.startsWith("/reviews")) return "reviews";
     if (pathname.startsWith("/profile")) return "profile";
+    if (pathname.startsWith("/feed")) return "feed";
     if (pathname.startsWith("/community")) return "community";
     if (pathname.startsWith("/map")) return "map";
     return null;
   }, [pathname]);
   const current = active ?? inferred;
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifRows, setNotifRows] = useState<NotificationRow[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+
+  async function refreshNotifications() {
+    try {
+      const data = await apiFetch<{ items: NotificationRow[]; unreadCount: number }>("/api/notifications?limit=40", { cache: "no-store" });
+      setNotifRows(data.items);
+      setUnreadCount(data.unreadCount);
+    } catch {
+      // Not logged in or transient failures.
+    }
+  }
+
+  useEffect(() => {
+    void refreshNotifications();
+    const t = window.setInterval(() => void refreshNotifications(), 45_000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    setPushSupported("serviceWorker" in navigator && "PushManager" in window && "Notification" in window);
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    void (async () => {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        setPushEnabled(!!sub);
+      } catch {
+        setPushEnabled(false);
+      }
+    })();
+  }, []);
+
+  async function enablePush() {
+    if (!pushSupported) return;
+    setPushBusy(true);
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") throw new Error("Notifications permission denied");
+      const { publicKey } = await apiFetch<{ publicKey: string }>("/api/push/public-key", { cache: "no-store" });
+      if (!publicKey) throw new Error("Push not configured on server");
+
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+      await apiFetch("/api/push/subscribe", { method: "POST", body: JSON.stringify(sub) });
+      setPushEnabled(true);
+    } catch {
+      setPushEnabled(false);
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
+  async function disablePush() {
+    if (!pushSupported) return;
+    setPushBusy(true);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await apiFetch("/api/push/unsubscribe", { method: "POST", body: JSON.stringify({ endpoint: sub.endpoint }) });
+        await sub.unsubscribe();
+      }
+      setPushEnabled(false);
+    } catch {
+      // ignore
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
+  async function markAllRead() {
+    try {
+      await apiFetch("/api/notifications/mark-read", { method: "POST", body: JSON.stringify({ all: true }) });
+      await refreshNotifications();
+    } catch {
+      // ignore
+    }
+  }
 
   return (
     <>
@@ -119,6 +242,9 @@ export default function AppNav({ active }: { active: "map" | "community" | "prof
               <Link className={cn("tab-chip", current === "map" && "tab-chip-active")} href="/map">
                 Map
               </Link>
+              <Link className={cn("tab-chip", current === "feed" && "tab-chip-active")} href="/feed">
+                Feed
+              </Link>
               <Link className={cn("tab-chip", current === "community" && "tab-chip-active")} href="/community">
                 Community
               </Link>
@@ -128,6 +254,25 @@ export default function AppNav({ active }: { active: "map" | "community" | "prof
               <Link className={cn("tab-chip", current === "profile" && "tab-chip-active")} href="/profile">
                 Me
               </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setNotifOpen(true);
+                  void refreshNotifications();
+                }}
+                className="relative rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-2.5 py-1.5 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
+                aria-label="Notifications"
+                title="Notifications"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <span>Alerts</span>
+                  {unreadCount > 0 ? (
+                    <span className="grid h-4 min-w-4 place-items-center rounded-full bg-[color-mix(in_oklab,var(--accent)_78%,transparent)] px-1 text-[10px] font-extrabold text-black">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  ) : null}
+                </span>
+              </button>
               <ThemeToggle />
             </div>
 
@@ -137,6 +282,74 @@ export default function AppNav({ active }: { active: "map" | "community" | "prof
           </div>
         </div>
       </header>
+
+      <Modal
+        open={notifOpen}
+        title="Notifications"
+        onClose={() => setNotifOpen(false)}
+        size="md"
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <button type="button" className="tab-chip" onClick={() => void refreshNotifications()}>
+              Refresh
+            </button>
+            <button type="button" className="tab-chip" onClick={() => void markAllRead()}>
+              Mark all read
+            </button>
+          </div>
+
+          <div className="rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_80%,transparent)] p-3">
+            <p className="text-sm font-semibold" data-heading="true">
+              Push notifications
+            </p>
+            <p className="mt-1 text-xs text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">
+              Enable push to get real-time alerts even when the app is closed.
+            </p>
+            <div className="mt-2 flex items-center gap-2">
+              {pushEnabled ? (
+                <button type="button" className="tab-chip" disabled={pushBusy} onClick={() => void disablePush()}>
+                  Disable push
+                </button>
+              ) : (
+                <button type="button" className="tab-chip tab-chip-active" disabled={pushBusy} onClick={() => void enablePush()}>
+                  Enable push
+                </button>
+              )}
+              {!pushSupported ? <span className="text-xs text-[color-mix(in_oklab,var(--muted)_70%,transparent)]">Not supported</span> : null}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {notifRows.length === 0 ? (
+              <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">No notifications.</p>
+            ) : (
+              notifRows.map((n) => (
+                <button
+                  key={n.id}
+                  type="button"
+                  className={cn(
+                    "w-full rounded-[var(--radius-md)] border px-3 py-2 text-left hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]",
+                    n.readAt ? "border-[color-mix(in_oklab,var(--border)_70%,transparent)]" : "border-[color-mix(in_oklab,var(--accent)_55%,transparent)]",
+                  )}
+                  onClick={() => {
+                    if (!n.readAt) {
+                      void apiFetch("/api/notifications/mark-read", { method: "POST", body: JSON.stringify({ ids: [n.id] }) }).then(() => void refreshNotifications());
+                    }
+                    if (n.href) window.location.href = n.href;
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold">{n.title}</p>
+                    {!n.readAt ? <span className="text-[10px] font-extrabold uppercase tracking-wide text-[color-mix(in_oklab,var(--accent)_80%,var(--text)_20%)]">New</span> : null}
+                  </div>
+                  <p className="mt-1 text-xs text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">{n.body}</p>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      </Modal>
 
       <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-[color-mix(in_oklab,var(--border)_75%,transparent)] bg-[color-mix(in_oklab,var(--surface)_40%,transparent)] backdrop-blur-[var(--blur)] lg:hidden">
         <div className="mx-auto flex max-w-[1500px] items-center justify-around px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">
@@ -153,6 +366,21 @@ export default function AppNav({ active }: { active: "map" | "community" | "prof
               </svg>
             </NavIcon>
             Map
+          </Link>
+
+          <Link
+            href="/feed"
+            className={cn(
+              "flex flex-col items-center gap-1 text-[11px] font-semibold",
+              current === "feed" ? "text-[color-mix(in_oklab,var(--accent)_75%,var(--text)_25%)]" : "text-[color-mix(in_oklab,var(--muted)_70%,transparent)]",
+            )}
+          >
+            <NavIcon>
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </NavIcon>
+            Feed
           </Link>
 
           <Link

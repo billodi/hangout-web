@@ -62,6 +62,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/profiles/[id]">
       avatarUrl: users.avatarUrl,
       isAdmin: users.isAdmin,
       role: users.role,
+      verified: users.verified,
       createdAt: users.createdAt,
     })
     .from(users)

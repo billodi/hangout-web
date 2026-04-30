@@ -3,13 +3,21 @@ export const runtime = "nodejs";
 
 import { getDb } from "@/db";
 import { activityParticipants, activities } from "@/db/schema";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, requireNotBlockedBetween } from "@/lib/auth";
+import { createNotification } from "@/lib/notifications";
+import { rateLimitOrThrow } from "@/lib/rateLimit";
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 
 export async function POST(_req: Request, ctx: RouteContext<"/api/activities/[id]/join">) {
   const { id } = await ctx.params;
   const currentUser = await getCurrentUser();
   if (!currentUser) return Response.json({ error: "Login required" }, { status: 401 });
+  try {
+    await rateLimitOrThrow({ key: `join:${currentUser.id}`, limit: 12, windowMs: 60_000 });
+  } catch (e) {
+    const status = typeof (e as any)?.status === "number" ? (e as any).status : 429;
+    return Response.json({ error: "Rate limited" }, { status });
+  }
 
   let db;
   try {
@@ -33,6 +41,13 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/activities/[id
   if (new Date(activity.whenISO).getTime() <= Date.now()) {
     return Response.json({ error: "Closed" }, { status: 409 });
   }
+  if (activity.creatorId) {
+    try {
+      await requireNotBlockedBetween(currentUser.id, activity.creatorId);
+    } catch {
+      return Response.json({ error: "Blocked" }, { status: 403 });
+    }
+  }
 
   const [updated] = await db
     .update(activities)
@@ -45,6 +60,16 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/activities/[id
       activityId: id,
       userId: currentUser.id,
     });
+    if (activity.creatorId && activity.creatorId !== currentUser.id) {
+      void createNotification({
+        userId: activity.creatorId,
+        type: "activity_joined",
+        title: "New join",
+        body: `${currentUser.displayName} joined “${activity.title}”.`,
+        href: `/map?activity=${encodeURIComponent(id)}`,
+        push: true,
+      });
+    }
     return Response.json({ ...updated, joined: true });
   }
 

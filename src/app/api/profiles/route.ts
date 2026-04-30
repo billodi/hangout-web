@@ -2,10 +2,10 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { getDb } from "@/db";
-import { activityParticipants, activities, galleryEntries, reviews, users } from "@/db/schema";
+import { activityParticipants, activities, follows, galleryEntries, reviews, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { computeBadges } from "@/lib/badges";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 type VisibleRole = "owner" | "admin" | "moderator" | null;
 
@@ -32,6 +32,11 @@ export async function GET() {
   const db = getDb();
   const currentUser = await getCurrentUser();
   const viewerRole = currentUser?.role ?? null;
+  let followingIds = new Set<string>();
+  if (currentUser) {
+    const rows = await db.select({ followedId: follows.followedId }).from(follows).where(eq(follows.followerId, currentUser.id));
+    followingIds = new Set(rows.map((r) => r.followedId));
+  }
 
   const allUsers = await db
     .select({
@@ -41,6 +46,7 @@ export async function GET() {
       avatarUrl: users.avatarUrl,
       isAdmin: users.isAdmin,
       role: users.role,
+      verified: users.verified,
       createdAt: users.createdAt,
     })
     .from(users);
@@ -110,6 +116,7 @@ export async function GET() {
       avgRating,
       badges,
       isCurrentUser,
+      isFollowedByViewer: currentUser ? followingIds.has(user.id) : false,
       visibleRole: getVisibleRoleForViewer(user.role, user.isAdmin, viewerRole, isCurrentUser),
     };
   });

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { getDb } from "@/db";
-import { activityParticipants, activities, users } from "@/db/schema";
+import { activityCheckins, activityParticipants, activityWaitlist, activities, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { purgeClosedActivities } from "@/lib/activityRetention";
 import { asc, eq, inArray } from "drizzle-orm";
@@ -80,11 +80,29 @@ export async function GET() {
     : [];
   const joinedSet = new Set(myJoinedIds.map((x) => x.activityId));
 
+  const myWaitlistIds = currentUser
+    ? await db
+        .select({ activityId: activityWaitlist.activityId })
+        .from(activityWaitlist)
+        .where(eq(activityWaitlist.userId, currentUser.id))
+    : [];
+  const waitlistSet = new Set(myWaitlistIds.map((x) => x.activityId));
+
+  const myCheckins = currentUser
+    ? await db
+        .select({ activityId: activityCheckins.activityId })
+        .from(activityCheckins)
+        .where(eq(activityCheckins.userId, currentUser.id))
+    : [];
+  const checkinSet = new Set(myCheckins.map((x) => x.activityId));
+
   return Response.json(
     rows.map((row) => ({
       ...row,
       creatorName: row.creatorId ? creatorMap.get(row.creatorId) ?? "Unknown" : "Unknown",
       joined: currentUser ? joinedSet.has(row.id) : false,
+      waitlisted: currentUser ? waitlistSet.has(row.id) : false,
+      checkedIn: currentUser ? checkinSet.has(row.id) : false,
     })),
   );
 }
