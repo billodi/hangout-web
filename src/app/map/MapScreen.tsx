@@ -852,7 +852,7 @@ export default function MapScreen({
 
       {useDesktopLayout ? desktopPanels : mobile}
 
-      <Modal open={showCreate} title="Create activity" onClose={() => setShowCreate(false)} size="lg">
+      <Modal open={showCreate} title="Create activity" onClose={() => setShowCreate(false)} size="lg" position="offsetTop">
         <div className="space-y-3">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
@@ -931,4 +931,3 @@ export default function MapScreen({
     </main>
   );
 }
-

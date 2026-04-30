@@ -2242,7 +2242,7 @@ function selectPinResult(result: NominatimResult) {
       ) : null}
 
       {showCreateModal ? (
-        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm p-3 lg:p-6 flex items-center justify-center" onClick={() => setShowCreateModal(false)}>
+        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm p-3 pt-10 sm:pt-14 lg:p-6 lg:pt-16 flex items-start justify-center" onClick={() => setShowCreateModal(false)}>
           <section className="w-full max-w-2xl max-h-[90vh] overflow-auto shell-panel p-3 lg:p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-lg font-semibold">Create Activity</h2>

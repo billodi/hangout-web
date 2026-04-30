@@ -9,12 +9,14 @@ export default function Modal({
   children,
   onClose,
   size = "md",
+  position = "center",
 }: {
   open: boolean;
   title: string;
   children: React.ReactNode;
   onClose: () => void;
   size?: "sm" | "md" | "lg";
+  position?: "center" | "offsetTop";
 }) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -70,9 +72,14 @@ export default function Modal({
     lg: "max-w-4xl",
   };
 
+  const positions: Record<NonNullable<Parameters<typeof Modal>[0]["position"]>, string> = {
+    center: "items-center",
+    offsetTop: "items-start pt-10 sm:pt-14 lg:pt-16",
+  };
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 backdrop-blur-md sm:p-6"
+      className={cn("fixed inset-0 z-50 flex justify-center bg-black/40 p-3 backdrop-blur-md sm:p-6", positions[position])}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -110,4 +117,3 @@ export default function Modal({
     </div>
   );
 }
-
