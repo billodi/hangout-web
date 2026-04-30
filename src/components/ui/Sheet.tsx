@@ -36,54 +36,60 @@ export default function Sheet({
 
   if (!open) return null;
 
-  const heights: Record<NonNullable<Parameters<typeof Sheet>[0]["height"]>, string> = {
+  const heights: Record<"auto" | "half" | "full", string> = {
     auto: "max-h-[78vh]",
     half: "h-[52vh]",
     full: "h-[92vh]",
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 backdrop-blur-md"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      role="presentation"
-    >
-      <div
-        ref={panelRef}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className={cn(
-          "w-full max-w-2xl rounded-t-[28px] border border-[var(--border)] " +
-            "bg-[linear-gradient(145deg,color-mix(in_oklab,var(--surface)_92%,var(--accent2)_8%),color-mix(in_oklab,var(--surface)_84%,#2fc6ff_16%))] " +
-            "[box-shadow:var(--shadow),var(--shadow-inset)] backdrop-blur-[var(--blur)] outline-none",
-          heights[height],
-        )}
-      >
-        <div className="px-4 pt-3">
-          <div className="mx-auto h-1.5 w-10 rounded-full bg-[color-mix(in_oklab,var(--border)_90%,transparent)]" />
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <h2 id={titleId} className="text-base font-semibold" data-heading="true">
-              {title}
-            </h2>
+    <div className="fixed inset-0 z-50 flex flex-col justify-end pointer-events-none">
+      {/* Full-screen scrim as its own control so taps always close (not lost to flex hit-testing). */}
+      <button
+        type="button"
+        aria-label="Close sheet"
+        className="pointer-events-auto absolute inset-0 border-0 bg-black/40 backdrop-blur-md cursor-default"
+        onClick={onClose}
+      />
+      <div className="pointer-events-none relative z-[1] flex w-full justify-center px-0 pb-[env(safe-area-inset-bottom)]">
+        <div
+          ref={panelRef}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          className={cn(
+            "pointer-events-auto w-full max-w-2xl rounded-t-[28px] border border-[var(--border)] " +
+              "bg-[linear-gradient(145deg,color-mix(in_oklab,var(--surface)_92%,var(--accent2)_8%),color-mix(in_oklab,var(--surface)_84%,#2fc6ff_16%))] " +
+              "[box-shadow:var(--shadow),var(--shadow-inset)] backdrop-blur-[var(--blur)] outline-none touch-manipulation",
+            heights[height],
+          )}
+        >
+          <div className="px-4 pt-3">
             <button
               type="button"
+              className="mx-auto flex h-8 w-full max-w-[120px] flex-col items-center justify-start rounded-full pt-1"
+              aria-label="Drag to close"
               onClick={onClose}
-              className="rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-2.5 py-1.5 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
             >
-              Close
+              <span className="h-1.5 w-10 rounded-full bg-[color-mix(in_oklab,var(--border)_90%,transparent)]" />
             </button>
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <h2 id={titleId} className="text-base font-semibold" data-heading="true">
+                {title}
+              </h2>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-3 py-2 text-sm font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)] min-h-[44px] min-w-[44px]"
+              >
+                Close
+              </button>
+            </div>
           </div>
+          <div className="max-h-[min(70vh,100dvh-12rem)] overflow-y-auto overscroll-contain p-4 pb-6">{children}</div>
         </div>
-        <div className="p-4 overflow-auto">{children}</div>
       </div>
     </div>
   );
 }
-

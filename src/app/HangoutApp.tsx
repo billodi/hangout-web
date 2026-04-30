@@ -94,6 +94,8 @@ type ProfileDetail = {
   }>;
   gallery: Array<{
     id: string;
+    activityId: string | null;
+    activityTitle: string | null;
     imageUrl: string;
     caption: string;
     location: string | null;
@@ -1742,6 +1744,7 @@ function selectPinResult(result: NominatimResult) {
                             </div>
                             <div className="p-3">
                               <p className="text-sm font-medium">{entry.caption}</p>
+                              {entry.activityTitle ? <p className="mt-1 text-xs font-medium text-cyan-200/90">{entry.activityTitle}</p> : null}
                               {entry.location ? <p className="text-xs text-white/65 mt-1">{entry.location}</p> : null}
                               {entry.lat !== null && entry.lng !== null ? (
                                 <p className="text-xs text-white/55">{entry.lat.toFixed(5)}, {entry.lng.toFixed(5)}</p>

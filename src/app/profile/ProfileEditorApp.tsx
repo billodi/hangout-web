@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
 import Toast, { type ToastTone } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/apiFetch";
@@ -35,6 +36,8 @@ type ProfileDetail = {
   };
   gallery: Array<{
     id: string;
+    activityId: string | null;
+    activityTitle: string | null;
     imageUrl: string;
     caption: string;
     location: string | null;
@@ -42,6 +45,13 @@ type ProfileDetail = {
     lng: number | null;
     createdAt: string;
   }>;
+};
+
+type ActivityOption = {
+  id: string;
+  title: string;
+  creatorId: string | null;
+  joined: boolean;
 };
 
 function safeText(value: unknown): string {
@@ -71,6 +81,20 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
   const [galleryLocation, setGalleryLocation] = useState("");
   const [galleryLat, setGalleryLat] = useState("");
   const [galleryLng, setGalleryLng] = useState("");
+  const [galleryActivityId, setGalleryActivityId] = useState("");
+  const [diaryActivityOptions, setDiaryActivityOptions] = useState<ActivityOption[]>([]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    void (async () => {
+      try {
+        const rows = await apiFetch<ActivityOption[]>("/api/activities");
+        setDiaryActivityOptions(rows.filter((r) => r.joined || r.creatorId === user.id));
+      } catch {
+        setDiaryActivityOptions([]);
+      }
+    })();
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -124,6 +148,7 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
         body: JSON.stringify({
           imageUrl,
           caption,
+          activityId: galleryActivityId.trim() ? galleryActivityId.trim() : null,
           location: safeText(galleryLocation) || null,
           lat: safeText(galleryLat) ? Number.parseFloat(galleryLat) : null,
           lng: safeText(galleryLng) ? Number.parseFloat(galleryLng) : null,
@@ -134,6 +159,7 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
       setGalleryLocation("");
       setGalleryLat("");
       setGalleryLng("");
+      setGalleryActivityId("");
       setToast({ tone: "info", message: "Diary entry added." });
       const profile = await apiFetch<ProfileDetail>(`/api/profiles/${user.id}`);
       setDetail(profile);
@@ -208,6 +234,17 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
               </h2>
               <Input value={galleryImageUrl} onChange={(e) => setGalleryImageUrl(e.target.value)} placeholder="Image URL" />
               <Input value={galleryCaption} onChange={(e) => setGalleryCaption(e.target.value)} placeholder="Caption" />
+              <div>
+                <p className="mb-1 text-xs font-semibold text-[color-mix(in_oklab,var(--muted)_88%,transparent)]">Activity (optional)</p>
+                <Select value={galleryActivityId} onChange={(e) => setGalleryActivityId(e.target.value)}>
+                  <option value="">Not linked to an activity</option>
+                  {diaryActivityOptions.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.title}
+                    </option>
+                  ))}
+                </Select>
+              </div>
               <Input value={galleryLocation} onChange={(e) => setGalleryLocation(e.target.value)} placeholder="Location (optional)" />
               <div className="grid grid-cols-2 gap-2">
                 <Input value={galleryLat} onChange={(e) => setGalleryLat(e.target.value)} placeholder="Lat (optional)" />
@@ -236,6 +273,11 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
                       </div>
                       <div className="p-3">
                         <p className="text-sm font-semibold">{entry.caption}</p>
+                        {entry.activityTitle ? (
+                          <p className="mt-1 text-xs font-medium text-[color-mix(in_oklab,var(--accent3)_70%,var(--text)_30%)]">
+                            {entry.activityTitle}
+                          </p>
+                        ) : null}
                         {entry.location ? (
                           <p className="text-xs text-[color-mix(in_oklab,var(--muted)_75%,transparent)] mt-1">{entry.location}</p>
                         ) : null}

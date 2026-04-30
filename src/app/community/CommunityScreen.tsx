@@ -62,6 +62,8 @@ type ProfileDetail = {
   }>;
   gallery: Array<{
     id: string;
+    activityId: string | null;
+    activityTitle: string | null;
     imageUrl: string;
     caption: string;
     location: string | null;
@@ -367,6 +369,9 @@ export default function CommunityScreen({ initialUser }: { initialUser: User }) 
                       </div>
                       <div className="p-3">
                         <p className="text-sm font-semibold">{g.caption}</p>
+                        {g.activityTitle ? (
+                          <p className="mt-1 text-xs font-medium text-[color-mix(in_oklab,var(--accent3)_70%,var(--text)_30%)]">{g.activityTitle}</p>
+                        ) : null}
                         {g.location ? <p className="text-xs text-[color-mix(in_oklab,var(--muted)_75%,transparent)] mt-1">{g.location}</p> : null}
                       </div>
                     </div>

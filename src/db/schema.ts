@@ -72,6 +72,8 @@ export const galleryEntries = pgTable("gallery_entries", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  /** Optional link to an activity this diary entry is about (joined or hosted). */
+  activityId: uuid("activity_id").references(() => activities.id, { onDelete: "set null" }),
   imageUrl: text("image_url").notNull(),
   caption: text("caption").notNull(),
   location: text("location"),

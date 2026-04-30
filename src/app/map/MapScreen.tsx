@@ -757,8 +757,8 @@ export default function MapScreen({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setMobileSheetOpen(true)}>
-              Browse
+            <Button size="sm" variant={mobileSheetOpen ? "secondary" : "ghost"} onClick={() => setMobileSheetOpen((o) => !o)}>
+              {mobileSheetOpen ? "Close" : "Browse"}
             </Button>
             <Button size="sm" variant="primary" onClick={() => setShowCreate(true)}>
               + Create
@@ -773,6 +773,9 @@ export default function MapScreen({
 
       <Sheet open={mobileSheetOpen} title="Activities" onClose={() => setMobileSheetOpen(false)} height="full">
         <div className="space-y-3">
+          <Button className="w-full" variant="primary" onClick={() => setMobileSheetOpen(false)}>
+            Back to map
+          </Button>
           <div className="grid grid-cols-2 gap-2">
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" />
             <Button variant="ghost" onClick={() => void refreshActivities()}>

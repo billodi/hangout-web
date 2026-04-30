@@ -124,6 +124,8 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/profiles/[id]">
   const gallery = await db
     .select({
       id: galleryEntries.id,
+      activityId: galleryEntries.activityId,
+      activityTitle: activities.title,
       imageUrl: galleryEntries.imageUrl,
       caption: galleryEntries.caption,
       location: galleryEntries.location,
@@ -132,6 +134,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/profiles/[id]">
       createdAt: galleryEntries.createdAt,
     })
     .from(galleryEntries)
+    .leftJoin(activities, eq(galleryEntries.activityId, activities.id))
     .where(eq(galleryEntries.userId, id))
     .orderBy(desc(galleryEntries.createdAt));
 
