@@ -2306,8 +2306,14 @@ function selectPinResult(result: NominatimResult) {
       ) : null}
 
       {showAuthModal ? (
-        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm p-3 lg:p-6 flex items-center justify-center" onClick={() => setShowAuthModal(false)}>
-          <section className="w-full max-w-md shell-panel p-3 lg:p-5 relative overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm p-3 pt-20 sm:pt-24 lg:p-6 lg:pt-28 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:pb-10 flex items-start justify-center"
+          onClick={() => setShowAuthModal(false)}
+        >
+          <section
+            className="w-full max-w-md max-h-[calc(100dvh-12rem-env(safe-area-inset-bottom))] sm:max-h-[calc(100dvh-13rem)] lg:max-h-[calc(100dvh-14rem)] overflow-auto shell-panel p-3 lg:p-5 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal decorative accent */}
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-500 via-yellow-400 to-teal-400" />
             

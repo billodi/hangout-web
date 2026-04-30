@@ -904,7 +904,13 @@ export default function MapScreen({
         </div>
       </Modal>
 
-      <Modal open={showAuth} title={authMode === "login" ? "Welcome back" : "Join BilliXa"} onClose={() => setShowAuth(false)} size="sm">
+      <Modal
+        open={showAuth}
+        title={authMode === "login" ? "Welcome back" : "Join BilliXa"}
+        onClose={() => setShowAuth(false)}
+        size="sm"
+        position="offsetTop"
+      >
         <div className="space-y-3">
           {authMode === "signup" ? (
             <Input value={authName} onChange={(e) => setAuthName(e.target.value)} placeholder="Display name" />

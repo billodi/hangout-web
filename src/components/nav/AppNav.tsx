@@ -43,6 +43,12 @@ type ChatProfilePick = {
   isCurrentUser: boolean;
 };
 
+type NavUser = {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+} | null;
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers);
   if (!headers.has("Content-Type") && options?.body) headers.set("Content-Type", "application/json");
@@ -150,6 +156,18 @@ function NavIcon({ children }: { children: React.ReactNode }) {
   );
 }
 
+function NavAvatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
+  if (avatarUrl) {
+    return <img src={avatarUrl} alt={name} className="h-7 w-7 rounded-full object-cover border border-[color-mix(in_oklab,var(--border)_75%,transparent)]" />;
+  }
+  const initial = name.trim().charAt(0).toUpperCase() || "?";
+  return (
+    <span className="grid h-7 w-7 place-items-center rounded-full border border-[color-mix(in_oklab,var(--border)_75%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_45%,transparent)] text-[11px] font-bold">
+      {initial}
+    </span>
+  );
+}
+
 export default function AppNav({ active }: { active: "map" | "feed" | "community" | "profile" | "reviews" | "admin" | null }) {
   const pathname = usePathname();
   const inferred: typeof active = useMemo(() => {
@@ -180,6 +198,7 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
   const [chatTargetUserId, setChatTargetUserId] = useState("");
   const [chatProfileQuery, setChatProfileQuery] = useState("");
   const [chatProfiles, setChatProfiles] = useState<ChatProfilePick[]>([]);
+  const [navUser, setNavUser] = useState<NavUser>(null);
 
   async function refreshNotifications() {
     try {
@@ -195,6 +214,17 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
     void refreshNotifications();
     const t = window.setInterval(() => void refreshNotifications(), 45_000);
     return () => window.clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const data = await apiFetch<{ user: NavUser }>("/api/auth/me", { cache: "no-store" });
+        setNavUser(data.user ?? null);
+      } catch {
+        setNavUser(null);
+      }
+    })();
   }, []);
 
   async function refreshChats() {
@@ -456,6 +486,23 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
                   ) : null}
                 </span>
               </button>
+              {navUser ? (
+                <Link
+                  href="/profile"
+                  className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-2.5 py-1.5 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
+                  title="Your profile"
+                >
+                  <NavAvatar name={navUser.displayName} avatarUrl={navUser.avatarUrl} />
+                  <span className="max-w-[110px] truncate">{navUser.displayName}</span>
+                </Link>
+              ) : (
+                <Link
+                  href="/profile"
+                  className="rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-2.5 py-1.5 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
+                >
+                  Login
+                </Link>
+              )}
               <ThemeToggle />
             </div>
 
@@ -478,6 +525,23 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
                     </span>
                   ) : null}
                 </button>
+                {navUser ? (
+                  <Link
+                    href="/profile"
+                    className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-2 py-1.5 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
+                    title="Your profile"
+                  >
+                    <NavAvatar name={navUser.displayName} avatarUrl={navUser.avatarUrl} />
+                    <span className="max-w-[72px] truncate">{navUser.displayName}</span>
+                  </Link>
+                ) : (
+                  <Link
+                    href="/profile"
+                    className="rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-2 py-1.5 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
+                  >
+                    Login
+                  </Link>
+                )}
                 <ThemeToggle />
               </div>
             </div>
