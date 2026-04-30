@@ -116,7 +116,9 @@ export default function Modal({
             Close
           </button>
         </div>
-        <div className="p-4">{children}</div>
+        <div className={cn("p-4", position === "offsetTop" ? "pb-[calc(7rem+env(safe-area-inset-bottom))] sm:pb-6" : null)}>
+          {children}
+        </div>
       </div>
     </div>
   );
