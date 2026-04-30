@@ -2242,8 +2242,14 @@ function selectPinResult(result: NominatimResult) {
       ) : null}
 
       {showCreateModal ? (
-        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm p-3 pt-10 sm:pt-14 lg:p-6 lg:pt-16 flex items-start justify-center" onClick={() => setShowCreateModal(false)}>
-          <section className="w-full max-w-2xl max-h-[90vh] overflow-auto shell-panel p-3 lg:p-5" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm p-3 pt-20 sm:pt-24 lg:p-6 lg:pt-28 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:pb-8 flex items-start justify-center"
+          onClick={() => setShowCreateModal(false)}
+        >
+          <section
+            className="w-full max-w-2xl max-h-[calc(100dvh-12rem-env(safe-area-inset-bottom))] sm:max-h-[calc(100dvh-13rem)] lg:max-h-[calc(100dvh-14rem)] overflow-auto shell-panel p-3 lg:p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-lg font-semibold">Create Activity</h2>
               <button type="button" className="action-ghost" onClick={() => setShowCreateModal(false)}>Close</button>
@@ -2289,7 +2295,7 @@ function selectPinResult(result: NominatimResult) {
                     ))}
                   </div>
                 ) : null}
-                <div ref={pickerMapElRef} className="h-40 sm:h-48 rounded-2xl border border-white/20 overflow-hidden" />
+                <div ref={pickerMapElRef} className="h-32 sm:h-44 rounded-2xl border border-white/20 overflow-hidden" />
               </div>
               <button type="button" className="action-primary w-full" onClick={() => void createActivity()}>
                 Publish Activity

@@ -74,7 +74,8 @@ export default function Modal({
 
   const positions: Record<NonNullable<Parameters<typeof Modal>[0]["position"]>, string> = {
     center: "items-center",
-    offsetTop: "items-start pt-10 sm:pt-14 lg:pt-16",
+    offsetTop:
+      "items-start pt-20 sm:pt-24 lg:pt-28 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:pb-8",
   };
 
   return (
@@ -95,6 +96,9 @@ export default function Modal({
           "w-full max-h-[90vh] overflow-auto rounded-[var(--radius-lg)] border border-[var(--border)] " +
             "bg-[linear-gradient(145deg,color-mix(in_oklab,var(--surface)_92%,var(--accent2)_8%),color-mix(in_oklab,var(--surface)_84%,#2fc6ff_16%))] " +
             "[box-shadow:var(--shadow),var(--shadow-inset)] backdrop-blur-[var(--blur)] outline-none",
+          position === "offsetTop"
+            ? "max-h-[calc(100dvh-12rem-env(safe-area-inset-bottom))] sm:max-h-[calc(100dvh-13rem)] lg:max-h-[calc(100dvh-14rem)]"
+            : null,
           sizes[size],
         )}
       >
