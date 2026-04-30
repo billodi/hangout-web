@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import Modal from "@/components/ui/Modal";
 import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
 import Toast, { type ToastTone } from "@/components/ui/Toast";
@@ -52,6 +53,13 @@ type ActivityOption = {
   title: string;
   creatorId: string | null;
   joined: boolean;
+  description?: string | null;
+  location?: string;
+  whenISO?: string;
+  type?: "chill" | "active" | "help";
+  lat?: number | null;
+  lng?: number | null;
+  limit?: number | null;
 };
 
 function safeText(value: unknown): string {
@@ -86,6 +94,17 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
   const [galleryLng, setGalleryLng] = useState("");
   const [galleryActivityId, setGalleryActivityId] = useState("");
   const [diaryActivityOptions, setDiaryActivityOptions] = useState<ActivityOption[]>([]);
+  const [myPosts, setMyPosts] = useState<ActivityOption[]>([]);
+  const [editingPost, setEditingPost] = useState<ActivityOption | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editLocation, setEditLocation] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editTime, setEditTime] = useState("");
+  const [editType, setEditType] = useState<"chill" | "active" | "help">("chill");
+  const [editLimit, setEditLimit] = useState("");
+  const [editLat, setEditLat] = useState("");
+  const [editLng, setEditLng] = useState("");
 
   useEffect(() => {
     if (!user?.id) return;
@@ -93,11 +112,83 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
       try {
         const rows = await apiFetch<ActivityOption[]>("/api/activities");
         setDiaryActivityOptions(rows.filter((r) => r.joined || r.creatorId === user.id));
+        setMyPosts(rows.filter((r) => r.creatorId === user.id));
       } catch {
         setDiaryActivityOptions([]);
+        setMyPosts([]);
       }
     })();
   }, [user?.id]);
+
+  function toDateInput(iso: string): string {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function toTimeInput(iso: string): string {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const h = String(d.getHours()).padStart(2, "0");
+    const m = String(d.getMinutes()).padStart(2, "0");
+    return `${h}:${m}`;
+  }
+
+  function startEditPost(post: ActivityOption) {
+    setEditingPost(post);
+    setEditTitle(post.title ?? "");
+    setEditDescription(post.description ?? "");
+    setEditLocation(post.location ?? "");
+    setEditDate(post.whenISO ? toDateInput(post.whenISO) : "");
+    setEditTime(post.whenISO ? toTimeInput(post.whenISO) : "");
+    setEditType(post.type === "active" || post.type === "help" ? post.type : "chill");
+    setEditLimit(post.limit ? String(post.limit) : "");
+    setEditLat(post.lat !== null && post.lat !== undefined ? String(post.lat) : "");
+    setEditLng(post.lng !== null && post.lng !== undefined ? String(post.lng) : "");
+  }
+
+  async function savePostEdits() {
+    if (!editingPost) return;
+    const whenISO = new Date(`${editDate}T${editTime}:00`).toISOString();
+    try {
+      await apiFetch(`/api/activities/${editingPost.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: editTitle,
+          description: editDescription,
+          location: editLocation,
+          whenISO,
+          type: editType,
+          limit: editLimit.trim() ? Number.parseInt(editLimit, 10) : null,
+          lat: editLat.trim() ? Number.parseFloat(editLat) : null,
+          lng: editLng.trim() ? Number.parseFloat(editLng) : null,
+        }),
+      });
+      setToast({ tone: "info", message: "Post updated." });
+      setEditingPost(null);
+      const rows = await apiFetch<ActivityOption[]>("/api/activities");
+      setDiaryActivityOptions(rows.filter((r) => r.joined || r.creatorId === user?.id));
+      setMyPosts(rows.filter((r) => r.creatorId === user?.id));
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not update post" });
+    }
+  }
+
+  async function deletePost(postId: string) {
+    if (!confirm("Delete this post? This cannot be undone.")) return;
+    try {
+      await apiFetch(`/api/activities/${postId}`, { method: "DELETE" });
+      setToast({ tone: "info", message: "Post deleted." });
+      const rows = await apiFetch<ActivityOption[]>("/api/activities");
+      setDiaryActivityOptions(rows.filter((r) => r.joined || r.creatorId === user?.id));
+      setMyPosts(rows.filter((r) => r.creatorId === user?.id));
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not delete post" });
+    }
+  }
 
   useEffect(() => {
     if (!user?.id) return;
@@ -335,6 +426,35 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
 
             <article className="lg:col-span-2 rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_80%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_38%,transparent)] p-3 lg:p-4">
               <h2 className="text-base font-semibold" data-heading="true">
+                Past posts
+              </h2>
+              {myPosts.filter((p) => p.whenISO && new Date(p.whenISO).getTime() < Date.now()).length === 0 ? (
+                <p className="mt-2 text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">No past posts yet.</p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {myPosts
+                    .filter((p) => p.whenISO && new Date(p.whenISO).getTime() < Date.now())
+                    .sort((a, b) => new Date(b.whenISO ?? 0).getTime() - new Date(a.whenISO ?? 0).getTime())
+                    .map((post) => (
+                      <div key={post.id} className="rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_42%,transparent)] p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold">{post.title}</p>
+                            <p className="text-xs text-[color-mix(in_oklab,var(--muted)_74%,transparent)]">{post.location} - {post.whenISO ? new Date(post.whenISO).toLocaleString() : ""}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="secondary" onClick={() => startEditPost(post)}>Edit</Button>
+                            <Button size="sm" variant="danger" onClick={() => void deletePost(post.id)}>Delete</Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </article>
+
+            <article className="lg:col-span-2 rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_80%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_38%,transparent)] p-3 lg:p-4">
+              <h2 className="text-base font-semibold" data-heading="true">
                 Photo diary
               </h2>
               {detail.gallery.length === 0 ? (
@@ -368,6 +488,33 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
           </div>
         ) : null}
       </section>
+
+      <Modal open={!!editingPost} title="Edit post" onClose={() => setEditingPost(null)} size="md" position="offsetTop">
+        <div className="space-y-2">
+          <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Title" />
+          <Textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Description" className="min-h-20" />
+          <Input value={editLocation} onChange={(e) => setEditLocation(e.target.value)} placeholder="Location" />
+          <div className="grid grid-cols-2 gap-2">
+            <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+            <Input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Select value={editType} onChange={(e) => setEditType(e.target.value as "chill" | "active" | "help")}>
+              <option value="chill">Chill</option>
+              <option value="active">Active</option>
+              <option value="help">Help</option>
+            </Select>
+            <Input value={editLimit} onChange={(e) => setEditLimit(e.target.value)} placeholder="Limit optional" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Input value={editLat} onChange={(e) => setEditLat(e.target.value)} placeholder="Latitude" />
+            <Input value={editLng} onChange={(e) => setEditLng(e.target.value)} placeholder="Longitude" />
+          </div>
+          <Button variant="primary" className="w-full" onClick={() => void savePostEdits()}>
+            Save changes
+          </Button>
+        </div>
+      </Modal>
 
       <Toast toast={toast} onClear={() => setToast(null)} />
     </main>

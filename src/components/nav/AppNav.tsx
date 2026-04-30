@@ -223,6 +223,13 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
   }, []);
 
   useEffect(() => {
+    if (!notifOpen) return;
+    void refreshNotifications();
+    const t = window.setInterval(() => void refreshNotifications(), 8_000);
+    return () => window.clearInterval(t);
+  }, [notifOpen]);
+
+  useEffect(() => {
     void (async () => {
       try {
         const data = await apiFetch<{ user: NavUser }>("/api/auth/me", { cache: "no-store" });
@@ -358,6 +365,18 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
     if (!chatOpen || !selectedChatId) return;
     void refreshChatMessages(selectedChatId);
     void markChatRead(selectedChatId);
+  }, [chatOpen, selectedChatId]);
+
+  useEffect(() => {
+    if (!chatOpen) return;
+    const t = window.setInterval(() => {
+      void refreshChats();
+      if (selectedChatId) {
+        void refreshChatMessages(selectedChatId);
+        void markChatRead(selectedChatId);
+      }
+    }, 4_000);
+    return () => window.clearInterval(t);
   }, [chatOpen, selectedChatId]);
 
   useEffect(() => {
