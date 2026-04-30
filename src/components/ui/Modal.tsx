@@ -75,7 +75,7 @@ export default function Modal({
   const positions: Record<NonNullable<Parameters<typeof Modal>[0]["position"]>, string> = {
     center: "items-center",
     offsetTop:
-      "items-start pt-20 sm:pt-24 lg:pt-28 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:pb-8",
+      "items-start pt-20 sm:pt-24 lg:pt-28 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:pb-10",
   };
 
   return (
