@@ -76,7 +76,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${sora.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full fit-dvh flex flex-col">
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[80] focus:rounded-md focus:bg-[var(--surface)] focus:px-3 focus:py-2 focus:text-sm focus:font-semibold"
@@ -87,7 +87,7 @@ export default function RootLayout({
         <div className="aurora aurora-a" />
         <div className="aurora aurora-b" />
         <AppNav active={null} />
-        <div id="main-content" className="flex-1 anim-page">
+        <div id="main-content" className="flex-1 w-full anim-page">
           {children}
         </div>
       </body>
