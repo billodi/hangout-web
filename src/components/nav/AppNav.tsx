@@ -134,6 +134,7 @@ function ThemeToggle() {
     <Button
       variant="ghost"
       size="sm"
+      className="px-2 py-1 text-[11px]"
       onClick={() => {
         const next: Theme = theme === "system" ? (systemTheme === "dark" ? "light" : "dark") : theme === "dark" ? "light" : "dark";
         setTheme(next);
@@ -553,23 +554,6 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
 
             <div className="lg:hidden">
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setChatOpen(true);
-                    void refreshChats();
-                  }}
-                  className="relative rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-2.5 py-1.5 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
-                  aria-label="Chats"
-                  title="Chats"
-                >
-                  Chats
-                  {chatUnreadCount > 0 ? (
-                    <span className="ml-1.5 inline-grid h-4 min-w-4 place-items-center rounded-full bg-[color-mix(in_oklab,var(--accent2)_75%,transparent)] px-1 text-[10px] font-extrabold text-black">
-                      {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
-                    </span>
-                  ) : null}
-                </button>
                 {navUser ? (
                   <Link
                     href="/profile"
@@ -872,6 +856,30 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
             </NavIcon>
             People
           </Link>
+          <button
+            type="button"
+            onClick={() => {
+              setChatOpen(true);
+              void refreshChats();
+            }}
+            className="flex flex-col items-center gap-1 text-[11px] font-semibold text-[color-mix(in_oklab,var(--muted)_70%,transparent)]"
+            aria-label="Chats"
+            title="Chats"
+          >
+            <span className="relative">
+              <NavIcon>
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h8M8 14h5m-9 6l2.5-2.5H19a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h1.5L4 20z" />
+                </svg>
+              </NavIcon>
+              {chatUnreadCount > 0 ? (
+                <span className="absolute -right-1 -top-1 inline-grid h-4 min-w-4 place-items-center rounded-full bg-[color-mix(in_oklab,var(--accent2)_75%,transparent)] px-1 text-[10px] font-extrabold text-black">
+                  {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
+                </span>
+              ) : null}
+            </span>
+            Chats
+          </button>
 
         </div>
       </nav>

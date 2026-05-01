@@ -497,6 +497,52 @@ export default function CommunityScreen({ initialUser }: { initialUser: User }) 
                 </Button>
               </Link>
             )}
+            {userId && detail && detail.profile.id !== userId ? (
+              <Button
+                className="w-full"
+                variant={blockedIds.has(detail.profile.id) ? "secondary" : "danger"}
+                disabled={followBusy}
+                onClick={() => {
+                  setFollowBusy(true);
+                  void (async () => {
+                    try {
+                      const res = await apiFetch<{ blocked: boolean }>(`/api/blocks/${detail.profile.id}`, { method: "POST" });
+                      setBlockedIds((prev) => {
+                        const next = new Set(prev);
+                        if (res.blocked) next.add(detail.profile.id);
+                        else next.delete(detail.profile.id);
+                        return next;
+                      });
+                      setToast({ tone: "info", message: res.blocked ? "Blocked." : "Unblocked." });
+                    } catch (error) {
+                      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not block" });
+                    } finally {
+                      setFollowBusy(false);
+                    }
+                  })();
+                }}
+              >
+                {blockedIds.has(detail.profile.id) ? "Unblock" : "Block"}
+              </Button>
+            ) : null}
+            {userId && detail && detail.profile.id !== userId ? (
+              <Button
+                className="w-full"
+                variant="ghost"
+                onClick={() => {
+                  const reason = window.prompt("Report reason (required):");
+                  if (!reason) return;
+                  void apiFetch("/api/reports", {
+                    method: "POST",
+                    body: JSON.stringify({ targetType: "profile", targetId: detail.profile.id, reason }),
+                  })
+                    .then(() => setToast({ tone: "info", message: "Report submitted." }))
+                    .catch((error) => setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not report" }));
+                }}
+              >
+                Report
+              </Button>
+            ) : null}
           </div>
         </div>
       )}
