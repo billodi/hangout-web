@@ -26,6 +26,7 @@ type Activity = {
   lng: number | null;
   whenISO: string;
   type: ActivityType;
+  visibility: "public" | "friends_only" | "invite_only";
   going: number;
   limit: number | null;
   createdAt: string;
@@ -92,6 +93,25 @@ function isClosedByWhen(whenISO: string, nowTick: number): boolean {
   return Number.isFinite(ts) && ts <= nowTick;
 }
 
+function isHappeningSoon(whenISO: string, nowTick: number, windowMs: number): boolean {
+  if (nowTick <= 0) return false;
+  const ts = new Date(whenISO).getTime();
+  if (!Number.isFinite(ts)) return false;
+  return ts > nowTick && ts <= nowTick + windowMs;
+}
+
+function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+}
+
 function loadLeaflet(): Promise<LeafletModule> {
   if (!leafletLoader) leafletLoader = import("leaflet");
   return leafletLoader;
@@ -141,6 +161,10 @@ export default function MapScreen({
   const [filterType, setFilterType] = useState<"all" | ActivityType>("all");
   const [sortBy, setSortBy] = useState<"soonest" | "newest">("soonest");
   const [onlyOpen, setOnlyOpen] = useState(false);
+  const [happeningSoonOnly, setHappeningSoonOnly] = useState(false);
+  const [nearMeOnly, setNearMeOnly] = useState(false);
+  const [nearMeRadiusKm, setNearMeRadiusKm] = useState(10);
+  const [myGeo, setMyGeo] = useState<{ lat: number; lng: number } | null>(null);
 
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(
     preferredActivityId ?? initialActivities[0]?.id ?? null,
@@ -166,12 +190,15 @@ export default function MapScreen({
   const [date, setDate] = useState(() => toDateInput(new Date()));
   const [time, setTime] = useState(() => toTimeInput(new Date()));
   const [type, setType] = useState<ActivityType>("chill");
+  const [visibility, setVisibility] = useState<"public" | "friends_only" | "invite_only">("public");
   const [limit, setLimit] = useState("");
   const [pinLat, setPinLat] = useState("");
   const [pinLng, setPinLng] = useState("");
   const [pinSearchQuery, setPinSearchQuery] = useState("");
   const [pinSearchResults, setPinSearchResults] = useState<NominatimResult[]>([]);
   const [pinSearchLoading, setPinSearchLoading] = useState(false);
+  const [reportBusyId, setReportBusyId] = useState<string | null>(null);
+  const [blockBusyUserId, setBlockBusyUserId] = useState<string | null>(null);
 
   const mapElRef = useRef<HTMLDivElement | null>(null);
   const pickerMapElRef = useRef<HTMLDivElement | null>(null);
@@ -183,6 +210,7 @@ export default function MapScreen({
   const [mapEpoch, setMapEpoch] = useState(0);
 
   const filteredActivities = useMemo(() => {
+    const SOON_WINDOW_MS = 2 * 60 * 60 * 1000;
     const query = search.trim().toLowerCase();
     const list = activities.filter((activity) => {
       const haystack = `${activity.title} ${activity.description ?? ""} ${activity.location} ${activity.creatorName}`.toLowerCase();
@@ -190,6 +218,11 @@ export default function MapScreen({
       if (filterType !== "all" && activity.type !== filterType) return false;
       if (onlyOpen && activity.limit !== null && activity.going >= activity.limit) return false;
       if (onlyOpen && isClosedByWhen(activity.whenISO, nowTick)) return false;
+      if (happeningSoonOnly && !isHappeningSoon(activity.whenISO, nowTick, SOON_WINDOW_MS)) return false;
+      if (nearMeOnly && myGeo) {
+        if (typeof activity.lat !== "number" || typeof activity.lng !== "number") return false;
+        if (distanceKm(myGeo.lat, myGeo.lng, activity.lat, activity.lng) > nearMeRadiusKm) return false;
+      }
       return true;
     });
     list.sort((a, b) => {
@@ -197,7 +230,7 @@ export default function MapScreen({
       return new Date(a.whenISO).getTime() - new Date(b.whenISO).getTime();
     });
     return list;
-  }, [activities, search, filterType, sortBy, onlyOpen, nowTick]);
+  }, [activities, search, filterType, sortBy, onlyOpen, happeningSoonOnly, nearMeOnly, nearMeRadiusKm, myGeo, nowTick]);
 
   const upcomingCount = useMemo(
     () => activities.filter((activity) => !isClosedByWhen(activity.whenISO, nowTick)).length,
@@ -398,6 +431,26 @@ export default function MapScreen({
     }
   }
 
+  function locateMeNow() {
+    if (!navigator.geolocation) {
+      setToast({ tone: "error", message: "Geolocation is not supported on this device." });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setMyGeo(next);
+        setNearMeOnly(true);
+        if (mapRef.current) {
+          mapRef.current.setView([next.lat, next.lng], 12);
+        }
+        setToast({ tone: "info", message: "Location updated. Showing nearby activities." });
+      },
+      () => setToast({ tone: "error", message: "Could not access your location." }),
+      { enableHighAccuracy: true, timeout: 9000, maximumAge: 60_000 },
+    );
+  }
+
   async function toggleJoin(activity: Activity) {
     if (!userId) {
       setToast({ tone: "error", message: "Login required" });
@@ -548,6 +601,7 @@ export default function MapScreen({
           lng: lngNum,
           whenISO: when.toISOString(),
           type,
+          visibility,
           limit: limitNum,
         }),
       });
@@ -558,6 +612,7 @@ export default function MapScreen({
       setTitle("");
       setDescription("");
       setType("chill");
+      setVisibility("public");
       setLimit("");
       setPinSearchQuery("");
       setPinSearchResults([]);
@@ -567,6 +622,51 @@ export default function MapScreen({
   }
 
   const isSelectedActivityOwner = !!(selectedActivity && userId && selectedActivity.creatorId === userId);
+
+  async function reportActivity(activityId: string) {
+    if (!userId) {
+      setToast({ tone: "error", message: "Login required" });
+      setShowAuth(true);
+      return;
+    }
+    const reasonRaw = window.prompt("Report reason (3-600 chars):");
+    const reason = String(reasonRaw ?? "").trim();
+    if (!reason) return;
+    setReportBusyId(activityId);
+    try {
+      await apiFetch("/api/reports", {
+        method: "POST",
+        body: JSON.stringify({ targetType: "activity", targetId: activityId, reason }),
+      });
+      setToast({ tone: "info", message: "Report submitted. Thank you." });
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not submit report" });
+    } finally {
+      setReportBusyId(null);
+    }
+  }
+
+  async function blockHost(activity: Activity) {
+    if (!userId) {
+      setToast({ tone: "error", message: "Login required" });
+      setShowAuth(true);
+      return;
+    }
+    if (!activity.creatorId || activity.creatorId === userId) {
+      setToast({ tone: "error", message: "Cannot block this host." });
+      return;
+    }
+    setBlockBusyUserId(activity.creatorId);
+    try {
+      const res = await apiFetch<{ blocked: boolean }>(`/api/blocks/${activity.creatorId}`, { method: "POST" });
+      setToast({ tone: "info", message: res.blocked ? "Host blocked." : "Host unblocked." });
+      await refreshActivities();
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not update block status" });
+    } finally {
+      setBlockBusyUserId(null);
+    }
+  }
 
   function ActivityCard({ activity }: { activity: Activity }) {
     const closed = isClosedByWhen(activity.whenISO, nowTick);
@@ -625,11 +725,27 @@ export default function MapScreen({
             {activity.going}
             {activity.limit !== null ? ` / ${activity.limit}` : ""} going
           </p>
+          <p className="text-xs text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">
+            Visibility: {activity.visibility === "friends_only" ? "Friends only" : activity.visibility === "invite_only" ? "Invite only" : "Public"}
+          </p>
         </div>
 
         <Button variant="primary" className="w-full" disabled={disabled} onClick={() => void toggleJoin(activity)}>
           {activity.joined ? (activity.creatorId === userId ? "Host" : "Leave") : "Join"}
         </Button>
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="ghost" className="w-full" disabled={reportBusyId === activity.id} onClick={() => void reportActivity(activity.id)}>
+            {reportBusyId === activity.id ? "Reporting..." : "Report"}
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full"
+            disabled={!activity.creatorId || activity.creatorId === userId || blockBusyUserId === activity.creatorId}
+            onClick={() => void blockHost(activity)}
+          >
+            {blockBusyUserId === activity.creatorId ? "Working..." : "Block host"}
+          </Button>
+        </div>
 
         {isSelectedActivityOwner ? (
           <p className="text-xs text-[color-mix(in_oklab,var(--muted)_70%,transparent)]">
@@ -691,6 +807,30 @@ export default function MapScreen({
           <input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} className="accent-[var(--accent)]" />
           Only show open
         </label>
+        <label className="flex items-center gap-2 text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">
+          <input
+            type="checkbox"
+            checked={happeningSoonOnly}
+            onChange={(e) => setHappeningSoonOnly(e.target.checked)}
+            className="accent-[var(--accent)]"
+          />
+          Happening in next 2 hours
+        </label>
+        <label className="flex items-center gap-2 text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">
+          <input type="checkbox" checked={nearMeOnly} onChange={(e) => setNearMeOnly(e.target.checked)} className="accent-[var(--accent)]" />
+          Near me now
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <Select value={String(nearMeRadiusKm)} onChange={(e) => setNearMeRadiusKm(Number.parseInt(e.target.value, 10) || 10)}>
+            <option value="5">Within 5 km</option>
+            <option value="10">Within 10 km</option>
+            <option value="25">Within 25 km</option>
+            <option value="50">Within 50 km</option>
+          </Select>
+          <Button variant="ghost" onClick={locateMeNow}>
+            Locate me
+          </Button>
+        </div>
 
         <div className="grid grid-cols-2 gap-2">
           <Button variant="primary" onClick={() => setShowCreate(true)}>
@@ -798,6 +938,30 @@ export default function MapScreen({
             <input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} className="accent-[var(--accent)]" />
             Only show open
           </label>
+          <label className="flex items-center gap-2 text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">
+            <input
+              type="checkbox"
+              checked={happeningSoonOnly}
+              onChange={(e) => setHappeningSoonOnly(e.target.checked)}
+              className="accent-[var(--accent)]"
+            />
+            Happening in next 2 hours
+          </label>
+          <label className="flex items-center gap-2 text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">
+            <input type="checkbox" checked={nearMeOnly} onChange={(e) => setNearMeOnly(e.target.checked)} className="accent-[var(--accent)]" />
+            Near me now
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <Select value={String(nearMeRadiusKm)} onChange={(e) => setNearMeRadiusKm(Number.parseInt(e.target.value, 10) || 10)}>
+              <option value="5">Within 5 km</option>
+              <option value="10">Within 10 km</option>
+              <option value="25">Within 25 km</option>
+              <option value="50">Within 50 km</option>
+            </Select>
+            <Button variant="ghost" onClick={locateMeNow}>
+              Locate me
+            </Button>
+          </div>
 
           <div className="space-y-2">
             {filteredActivities.map((a) => (
@@ -862,6 +1026,11 @@ export default function MapScreen({
               <option value="help">Help</option>
             </Select>
           </div>
+          <Select value={visibility} onChange={(e) => setVisibility(e.target.value as typeof visibility)}>
+            <option value="public">Public</option>
+            <option value="friends_only">Friends only</option>
+            <option value="invite_only">Invite only</option>
+          </Select>
           <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" className="min-h-20" />
           <div className="grid grid-cols-2 gap-2">
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />

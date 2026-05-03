@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { getDb } from "@/db";
-import { activityParticipants, activities } from "@/db/schema";
+import { activityParticipants, activities, follows } from "@/db/schema";
 import { getCurrentUser, requireNotBlockedBetween } from "@/lib/auth";
 import { createNotification } from "@/lib/notifications";
 import { rateLimitOrThrow } from "@/lib/rateLimit";
@@ -47,6 +47,18 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/activities/[id
     } catch {
       return Response.json({ error: "Blocked" }, { status: 403 });
     }
+  }
+
+  if (activity.visibility === "invite_only" && activity.creatorId !== currentUser.id) {
+    return Response.json({ error: "Invite only" }, { status: 403 });
+  }
+  if (activity.visibility === "friends_only" && activity.creatorId && activity.creatorId !== currentUser.id) {
+    const [isFollowingCreator] = await db
+      .select({ id: follows.id })
+      .from(follows)
+      .where(and(eq(follows.followerId, currentUser.id), eq(follows.followedId, activity.creatorId)))
+      .limit(1);
+    if (!isFollowingCreator) return Response.json({ error: "Friends only" }, { status: 403 });
   }
 
   const [updated] = await db

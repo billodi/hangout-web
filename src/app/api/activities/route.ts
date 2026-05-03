@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { getDb } from "@/db";
-import { activityCheckins, activityParticipants, activityWaitlist, activities, users } from "@/db/schema";
+import { activityCheckins, activityParticipants, activityWaitlist, activities, follows, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { purgeClosedActivities } from "@/lib/activityRetention";
 import { asc, eq, inArray } from "drizzle-orm";
@@ -15,6 +15,7 @@ type CreatePayload = {
   lng?: unknown;
   whenISO?: unknown;
   type?: unknown;
+  visibility?: unknown;
   limit?: unknown;
 };
 
@@ -28,6 +29,11 @@ function cleanText(value: unknown, maxLen: number): string | null {
 function cleanType(value: unknown): "chill" | "active" | "help" {
   if (value === "active" || value === "help") return value;
   return "chill";
+}
+
+function cleanVisibility(value: unknown): "public" | "friends_only" | "invite_only" {
+  if (value === "friends_only" || value === "invite_only") return value;
+  return "public";
 }
 
 function cleanFloat(value: unknown): number | null {
@@ -96,8 +102,26 @@ export async function GET() {
     : [];
   const checkinSet = new Set(myCheckins.map((x) => x.activityId));
 
+  const myFollowingIds = currentUser
+    ? await db
+        .select({ followedId: follows.followedId })
+        .from(follows)
+        .where(eq(follows.followerId, currentUser.id))
+    : [];
+  const followingSet = new Set(myFollowingIds.map((row) => row.followedId));
+
+  const visibleRows = rows.filter((row) => {
+    if (row.visibility === "public") return true;
+    if (!row.creatorId) return true;
+    if (!currentUser) return false;
+    if (row.creatorId === currentUser.id) return true;
+    if (joinedSet.has(row.id)) return true;
+    if (row.visibility === "friends_only") return followingSet.has(row.creatorId);
+    return false;
+  });
+
   return Response.json(
-    rows.map((row) => ({
+    visibleRows.map((row) => ({
       ...row,
       creatorName: row.creatorId ? creatorMap.get(row.creatorId) ?? "Unknown" : "Unknown",
       joined: currentUser ? joinedSet.has(row.id) : false,
@@ -133,6 +157,7 @@ export async function POST(req: Request) {
   const lng = cleanFloat(body.lng);
   const whenISO = cleanWhenISO(body.whenISO);
   const type = cleanType(body.type);
+  const visibility = cleanVisibility(body.visibility);
   const limit = cleanLimit(body.limit);
 
   if (!title || !location || !whenISO || lat === null || lng === null) {
@@ -150,6 +175,7 @@ export async function POST(req: Request) {
       lng,
       whenISO,
       type,
+      visibility,
       going: 1,
       limit,
     })

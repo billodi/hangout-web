@@ -1,6 +1,7 @@
 import { boolean, doublePrecision, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 export const activityType = pgEnum("activity_type", ["chill", "active", "help"]);
+export const activityVisibility = pgEnum("activity_visibility", ["public", "friends_only", "invite_only"]);
 export const reportTargetType = pgEnum("report_target_type", ["activity", "profile", "message"]);
 export const notificationType = pgEnum("notification_type", [
   "activity_joined",
@@ -44,6 +45,7 @@ export const activities = pgTable("activities", {
   lng: doublePrecision("lng"),
   whenISO: timestamp("when_iso", { withTimezone: true, mode: "string" }).notNull(),
   type: activityType("type").notNull().default("chill"),
+  visibility: activityVisibility("visibility").notNull().default("public"),
   going: integer("going").notNull().default(1),
   limit: integer("limit"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),

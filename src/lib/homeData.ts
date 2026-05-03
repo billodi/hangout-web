@@ -1,5 +1,5 @@
 import { getDb } from "@/db";
-import { activityParticipants, activities, users } from "@/db/schema";
+import { activityParticipants, activities, follows, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { purgeClosedActivities } from "@/lib/activityRetention";
 import { asc, eq, inArray } from "drizzle-orm";
@@ -33,7 +33,25 @@ export async function getHomeData() {
       : [];
     const joinedSet = new Set(myJoinedRows.map((row) => row.activityId));
 
-    initialActivities = rows.map((row) => ({
+    const myFollowingRows = initialUser
+      ? await db
+          .select({ followedId: follows.followedId })
+          .from(follows)
+          .where(eq(follows.followerId, initialUser.id))
+      : [];
+    const followingSet = new Set(myFollowingRows.map((row) => row.followedId));
+
+    const visibleRows = rows.filter((row) => {
+      if (row.visibility === "public") return true;
+      if (!row.creatorId) return true;
+      if (!initialUser) return false;
+      if (row.creatorId === initialUser.id) return true;
+      if (joinedSet.has(row.id)) return true;
+      if (row.visibility === "friends_only") return followingSet.has(row.creatorId);
+      return false;
+    });
+
+    initialActivities = visibleRows.map((row) => ({
       ...row,
       creatorName: row.creatorId ? creatorMap.get(row.creatorId) ?? "Unknown" : "Unknown",
       joined: initialUser ? joinedSet.has(row.id) : false,
@@ -46,4 +64,3 @@ export async function getHomeData() {
 
   return { initialActivities, initialBackendOk, initialUser };
 }
-
