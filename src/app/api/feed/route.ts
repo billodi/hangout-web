@@ -57,12 +57,14 @@ export async function GET() {
       lat: galleryEntries.lat,
       lng: galleryEntries.lng,
       activityId: galleryEntries.activityId,
+      activityTitle: activities.title,
       createdAt: galleryEntries.createdAt,
       authorName: users.displayName,
       authorAvatarUrl: users.avatarUrl,
     })
     .from(galleryEntries)
     .innerJoin(users, eq(galleryEntries.userId, users.id))
+    .leftJoin(activities, eq(galleryEntries.activityId, activities.id))
     .where(inArray(galleryEntries.userId, followedIds))
     .orderBy(desc(galleryEntries.createdAt))
     .limit(40);
@@ -72,4 +74,3 @@ export async function GET() {
     diary: feedDiary,
   });
 }
-

@@ -24,6 +24,9 @@ export async function POST(req: Request) {
   const file = fd.get("file");
   if (!(file instanceof File)) return Response.json({ error: "File required" }, { status: 400 });
   if (file.size <= 0 || file.size > 8_000_000) return Response.json({ error: "File too large" }, { status: 400 });
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+    return Response.json({ error: "Unsupported file type. Use PNG, JPG, or WEBP." }, { status: 400 });
+  }
 
   let sb;
   try {
@@ -46,4 +49,3 @@ export async function POST(req: Request) {
   const url = sb.storage.from(bucket).getPublicUrl(path).data.publicUrl;
   return Response.json({ url });
 }
-

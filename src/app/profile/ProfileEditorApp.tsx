@@ -88,6 +88,7 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
   const [galleryImageUrl, setGalleryImageUrl] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [diaryFile, setDiaryFile] = useState<File | null>(null);
+  const [diaryPreviewUrl, setDiaryPreviewUrl] = useState("");
   const [uploading, setUploading] = useState<"avatar" | "diary" | null>(null);
   const [galleryCaption, setGalleryCaption] = useState("");
   const [galleryLocation, setGalleryLocation] = useState("");
@@ -107,6 +108,16 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
   const [editLimit, setEditLimit] = useState("");
   const [editLat, setEditLat] = useState("");
   const [editLng, setEditLng] = useState("");
+
+  useEffect(() => {
+    if (!diaryFile) {
+      setDiaryPreviewUrl("");
+      return;
+    }
+    const localUrl = URL.createObjectURL(diaryFile);
+    setDiaryPreviewUrl(localUrl);
+    return () => URL.revokeObjectURL(localUrl);
+  }, [diaryFile]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -261,6 +272,10 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
 
   async function uploadDiaryImage() {
     if (!diaryFile) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(diaryFile.type)) {
+      setToast({ tone: "error", message: "Use PNG, JPG, or WEBP." });
+      return;
+    }
     setUploading("diary");
     try {
       const fd = new FormData();
@@ -269,7 +284,7 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || "Upload failed");
       setGalleryImageUrl(data.url);
-      setToast({ tone: "info", message: "Diary image uploaded." });
+      setToast({ tone: "info", message: "Diary image uploaded. Add caption and post." });
       setDiaryFile(null);
     } catch (e) {
       setToast({ tone: "error", message: e instanceof Error ? e.message : "Upload failed" });
@@ -282,8 +297,12 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
     if (!user) return;
     const imageUrl = safeText(galleryImageUrl);
     const caption = safeText(galleryCaption);
-    if (!isValidImageUrl(imageUrl) || !caption) {
-      setToast({ tone: "error", message: "Add a valid image URL and caption." });
+    if (!isValidImageUrl(imageUrl)) {
+      setToast({ tone: "error", message: "Upload an image first." });
+      return;
+    }
+    if (!caption) {
+      setToast({ tone: "error", message: "Caption is required." });
       return;
     }
 
@@ -393,27 +412,46 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
               </Button>
             </article>
 
-            <article className="rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_80%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_38%,transparent)] p-3 lg:p-4 space-y-2">
+                        <article className="rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_80%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_38%,transparent)] p-3 lg:p-4 space-y-2">
               <h2 className="text-base font-semibold" data-heading="true">
                 Add diary entry
               </h2>
-              <Input value={galleryImageUrl} onChange={(e) => setGalleryImageUrl(e.target.value)} placeholder="Image URL" />
               <div className="rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] p-3">
-                <p className="text-xs font-semibold text-[color-mix(in_oklab,var(--muted)_88%,transparent)]">Upload diary image (optional)</p>
+                <p className="text-xs font-semibold text-[color-mix(in_oklab,var(--muted)_88%,transparent)]">Upload diary image</p>
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
                   className="mt-2 block w-full text-xs"
                   onChange={(e) => setDiaryFile(e.target.files?.[0] ?? null)}
                 />
+                {diaryPreviewUrl ? (
+                  <div className="mt-2 overflow-hidden rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)]">
+                    <div className="relative h-44 w-full">
+                      <Image src={diaryPreviewUrl} alt="Diary preview" fill unoptimized className="object-cover" />
+                    </div>
+                  </div>
+                ) : null}
                 <div className="mt-2 flex gap-2">
                   <Button size="sm" variant="secondary" onClick={() => void uploadDiaryImage()} disabled={!diaryFile || uploading === "diary"}>
                     {uploading === "diary" ? "Uploading…" : "Upload"}
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setDiaryFile(null)} disabled={!diaryFile || uploading === "diary"}>
-                    Clear
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setDiaryFile(null);
+                      setGalleryImageUrl("");
+                    }}
+                    disabled={(!diaryFile && !galleryImageUrl) || uploading === "diary"}
+                  >
+                    Reset image
                   </Button>
                 </div>
+                {galleryImageUrl ? (
+                  <p className="mt-2 text-[11px] text-[color-mix(in_oklab,var(--muted)_70%,transparent)]">Image ready for posting.</p>
+                ) : (
+                  <p className="mt-2 text-[11px] text-[color-mix(in_oklab,var(--muted)_70%,transparent)]">Choose a file and upload before posting.</p>
+                )}
               </div>
               <Input value={galleryCaption} onChange={(e) => setGalleryCaption(e.target.value)} placeholder="Caption" />
               <div>
@@ -432,7 +470,7 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
                 <Input value={galleryLat} onChange={(e) => setGalleryLat(e.target.value)} placeholder="Lat (optional)" />
                 <Input value={galleryLng} onChange={(e) => setGalleryLng(e.target.value)} placeholder="Lng (optional)" />
               </div>
-              <Button variant="primary" onClick={() => void postDiaryEntry()}>
+              <Button variant="primary" onClick={() => void postDiaryEntry()} disabled={!galleryImageUrl || uploading === "diary"}>
                 Post
               </Button>
             </article>
@@ -555,3 +593,6 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
     </main>
   );
 }
+
+
+

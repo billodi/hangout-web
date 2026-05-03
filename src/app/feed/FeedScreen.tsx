@@ -35,6 +35,7 @@ type FeedDiary = {
   location: string | null;
   createdAt: string;
   activityId: string | null;
+  activityTitle?: string | null;
 };
 
 export default function FeedScreen({ initialUser }: { initialUser: User }) {
@@ -42,6 +43,8 @@ export default function FeedScreen({ initialUser }: { initialUser: User }) {
   const [activities, setActivities] = useState<FeedActivity[]>([]);
   const [diary, setDiary] = useState<FeedDiary[]>([]);
   const [loading, setLoading] = useState(false);
+  const [feedView, setFeedView] = useState<"all" | "activities" | "diary">("all");
+  const [diaryFilter, setDiaryFilter] = useState<"latest" | "with_location" | "linked_activity">("latest");
 
   useEffect(() => {
     if (!initialUser?.id) return;
@@ -117,7 +120,20 @@ export default function FeedScreen({ initialUser }: { initialUser: User }) {
 
         {loading ? <p className="mt-3 text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">Loading…</p> : null}
 
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button size="sm" variant={feedView === "all" ? "primary" : "ghost"} onClick={() => setFeedView("all")}>
+            All
+          </Button>
+          <Button size="sm" variant={feedView === "activities" ? "primary" : "ghost"} onClick={() => setFeedView("activities")}>
+            Activities
+          </Button>
+          <Button size="sm" variant={feedView === "diary" ? "primary" : "ghost"} onClick={() => setFeedView("diary")}>
+            Photo diary
+          </Button>
+        </div>
+
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          {feedView !== "diary" ? (
           <article className="rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_80%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_38%,transparent)] p-3 lg:p-4">
             <h2 className="text-base font-semibold" data-heading="true">
               Activities
@@ -145,17 +161,47 @@ export default function FeedScreen({ initialUser }: { initialUser: User }) {
               </div>
             )}
           </article>
+          ) : null}
 
+          {feedView !== "activities" ? (
           <article className="rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_80%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_38%,transparent)] p-3 lg:p-4">
-            <h2 className="text-base font-semibold" data-heading="true">
-              Photo diary
-            </h2>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-base font-semibold" data-heading="true">
+                Photo diary
+              </h2>
+              <div className="flex gap-2">
+                <Button size="sm" variant={diaryFilter === "latest" ? "primary" : "ghost"} onClick={() => setDiaryFilter("latest")}>
+                  Latest
+                </Button>
+                <Button
+                  size="sm"
+                  variant={diaryFilter === "with_location" ? "primary" : "ghost"}
+                  onClick={() => setDiaryFilter("with_location")}
+                >
+                  With location
+                </Button>
+                <Button
+                  size="sm"
+                  variant={diaryFilter === "linked_activity" ? "primary" : "ghost"}
+                  onClick={() => setDiaryFilter("linked_activity")}
+                >
+                  Linked
+                </Button>
+              </div>
+            </div>
             {diary.length === 0 ? (
               <p className="mt-2 text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">No diary posts yet.</p>
             ) : (
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {diary.slice(0, 12).map((d) => (
-                  <div key={d.id} className="overflow-hidden rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_42%,transparent)]">
+              <div className="mt-3 grid grid-cols-1 gap-3">
+                {diary
+                  .filter((d) => {
+                    if (diaryFilter === "with_location") return !!d.location;
+                    if (diaryFilter === "linked_activity") return !!d.activityId;
+                    return true;
+                  })
+                  .slice(0, 20)
+                  .map((d) => (
+                  <article key={d.id} className="overflow-hidden rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_42%,transparent)]">
                     <div className="relative h-36 w-full">
                       <Image src={d.imageUrl} alt={d.caption} fill unoptimized className="object-cover" sizes="100vw" />
                     </div>
@@ -164,14 +210,20 @@ export default function FeedScreen({ initialUser }: { initialUser: User }) {
                         <p className="text-sm font-semibold">{d.caption}</p>
                         <p className="text-[11px] text-[color-mix(in_oklab,var(--muted)_72%,transparent)]">{d.authorName}</p>
                       </div>
+                      {d.activityTitle ? (
+                        <p className="mt-1 text-xs font-semibold text-[color-mix(in_oklab,var(--accent3)_70%,var(--text)_30%)]">
+                          {d.activityTitle}
+                        </p>
+                      ) : null}
                       {d.location ? <p className="mt-1 text-xs text-[color-mix(in_oklab,var(--muted)_75%,transparent)]">{d.location}</p> : null}
                       <p className="mt-1 text-[11px] text-[color-mix(in_oklab,var(--muted)_68%,transparent)]">{formatWhenShort(d.createdAt)}</p>
                     </div>
-                  </div>
+                  </article>
                 ))}
               </div>
             )}
           </article>
+          ) : null}
         </div>
       </section>
 
@@ -179,4 +231,3 @@ export default function FeedScreen({ initialUser }: { initialUser: User }) {
     </main>
   );
 }
-
