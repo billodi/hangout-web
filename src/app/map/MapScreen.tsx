@@ -54,6 +54,14 @@ type NominatimResult = {
   lon: string;
 };
 
+type CoHostProfile = {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  bio: string;
+  isCurrentUser?: boolean;
+};
+
 type LeafletModule = typeof import("leaflet");
 type LeafletMap = import("leaflet").Map;
 type LeafletCircleMarker = import("leaflet").CircleMarker;
@@ -209,7 +217,9 @@ export default function MapScreen({
   const [pinSearchLoading, setPinSearchLoading] = useState(false);
   const [recurrenceRule, setRecurrenceRule] = useState<"none" | "weekly" | "monthly">("none");
   const [recurrenceUntilDate, setRecurrenceUntilDate] = useState("");
-  const [coHostIdsText, setCoHostIdsText] = useState("");
+  const [coHostQuery, setCoHostQuery] = useState("");
+  const [coHostProfiles, setCoHostProfiles] = useState<CoHostProfile[]>([]);
+  const [selectedCoHostIds, setSelectedCoHostIds] = useState<string[]>([]);
   const [reportBusyId, setReportBusyId] = useState<string | null>(null);
   const [blockBusyUserId, setBlockBusyUserId] = useState<string | null>(null);
 
@@ -366,6 +376,18 @@ export default function MapScreen({
       }
     };
   }, [showCreate]);
+
+  useEffect(() => {
+    if (!showCreate) return;
+    void (async () => {
+      try {
+        const rows = await apiFetch<CoHostProfile[]>("/api/profiles", { cache: "no-store" });
+        setCoHostProfiles(rows.filter((row) => !row.isCurrentUser && row.id !== userId));
+      } catch {
+        setCoHostProfiles([]);
+      }
+    })();
+  }, [showCreate, userId]);
 
   useEffect(() => {
     const onResize = () => invalidateMapSoon([0, 120]);
@@ -591,11 +613,7 @@ export default function MapScreen({
     const latNum = Number.parseFloat(pinLat);
     const lngNum = Number.parseFloat(pinLng);
     const limitNum = limit.trim() ? clampInt(limit, 2, 200) : null;
-    const coHostIds = coHostIdsText
-      .split(",")
-      .map((row) => row.trim())
-      .filter(Boolean);
-
+    const coHostIds = selectedCoHostIds.filter((id) => id && id !== userId);
     if (!cleanTitle || !cleanLocation || !Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
       setToast({ tone: "error", message: "Title, location label, and map pin are required." });
       return;
@@ -642,11 +660,25 @@ export default function MapScreen({
       setPinSearchResults([]);
       setRecurrenceRule("none");
       setRecurrenceUntilDate("");
-      setCoHostIdsText("");
+      setCoHostQuery("");
+      setSelectedCoHostIds([]);
     } catch (error) {
       setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not create activity" });
     }
   }
+
+  const filteredCoHostProfiles = useMemo(() => {
+    const q = coHostQuery.trim().toLowerCase();
+    return coHostProfiles
+      .filter((p) => !selectedCoHostIds.includes(p.id))
+      .filter((p) => !q || `${p.displayName} ${p.bio}`.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [coHostProfiles, coHostQuery, selectedCoHostIds]);
+
+  const selectedCoHosts = useMemo(
+    () => selectedCoHostIds.map((id) => coHostProfiles.find((p) => p.id === id)).filter(Boolean) as CoHostProfile[],
+    [selectedCoHostIds, coHostProfiles],
+  );
 
   const isSelectedActivityOwner = !!(selectedActivity && userId && selectedActivity.creatorId === userId);
   const selectedDateTime = useMemo(() => new Date(`${date}T${time}:00`), [date, time]);
@@ -1092,11 +1124,49 @@ export default function MapScreen({
               placeholder="Repeat until"
             />
           </div>
-          <Input
-            value={coHostIdsText}
-            onChange={(e) => setCoHostIdsText(e.target.value)}
-            placeholder="Co-host user IDs (comma-separated, optional)"
-          />
+          <div className="space-y-2">
+            <Input
+              value={coHostQuery}
+              onChange={(e) => setCoHostQuery(e.target.value)}
+              placeholder="Search co-host by name (optional)"
+            />
+            {selectedCoHosts.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {selectedCoHosts.map((profile) => (
+                  <button
+                    key={profile.id}
+                    type="button"
+                    onClick={() => setSelectedCoHostIds((prev) => prev.filter((id) => id !== profile.id))}
+                    className="rounded-full border border-[color-mix(in_oklab,var(--border)_75%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_45%,transparent)] px-2 py-1 text-xs"
+                    title="Remove co-host"
+                  >
+                    {profile.displayName} x
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {coHostQuery.trim() ? (
+              <div className="max-h-32 overflow-auto rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_80%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_35%,transparent)]">
+                {filteredCoHostProfiles.length === 0 ? (
+                  <p className="px-3 py-2 text-xs text-[color-mix(in_oklab,var(--muted)_75%,transparent)]">No matching profiles.</p>
+                ) : (
+                  filteredCoHostProfiles.map((profile) => (
+                    <button
+                      key={profile.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCoHostIds((prev) => (prev.includes(profile.id) ? prev : [...prev, profile.id]));
+                        setCoHostQuery("");
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs hover:bg-[color-mix(in_oklab,var(--surface2)_52%,transparent)]"
+                    >
+                      {profile.displayName}
+                    </button>
+                  ))
+                )}
+              </div>
+            ) : null}
+          </div>
           <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" className="min-h-20" />
           <div className="grid grid-cols-2 gap-2">
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
