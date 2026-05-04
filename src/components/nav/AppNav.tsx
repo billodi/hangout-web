@@ -207,6 +207,15 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
   const [authPassword, setAuthPassword] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
 
+  async function refreshNavUser() {
+    try {
+      const data = await apiFetch<{ user: NavUser }>("/api/auth/me", { cache: "no-store" });
+      setNavUser(data.user ?? null);
+    } catch {
+      setNavUser(null);
+    }
+  }
+
   async function refreshNotifications() {
     try {
       const data = await apiFetch<{ items: NotificationRow[]; unreadCount: number }>("/api/notifications?limit=40", { cache: "no-store" });
@@ -229,15 +238,17 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
   usePolling(() => void refreshNotifications(), 8_000, notifOpen);
 
   useEffect(() => {
-    void (async () => {
-      try {
-        const data = await apiFetch<{ user: NavUser }>("/api/auth/me", { cache: "no-store" });
-        setNavUser(data.user ?? null);
-      } catch {
-        setNavUser(null);
-      }
-    })();
+    void refreshNavUser();
   }, []);
+  useEffect(() => {
+    void refreshNavUser();
+  }, [pathname]);
+  useEffect(() => {
+    const onFocus = () => void refreshNavUser();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
+  usePolling(() => void refreshNavUser(), 5_000, true);
 
   async function refreshChats() {
     try {
@@ -435,7 +446,7 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
       setNavUser(data.user ?? null);
       setAuthPassword("");
       setAuthOpen(false);
-      await Promise.all([refreshNotifications(), refreshChats()]);
+      await Promise.all([refreshNotifications(), refreshChats(), refreshNavUser()]);
     } finally {
       setAuthBusy(false);
     }
