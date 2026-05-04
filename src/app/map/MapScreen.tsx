@@ -62,6 +62,13 @@ const TYPE_META: Record<ActivityType, { label: string; accent: string; scene: st
   help: { label: "Help", accent: "var(--type-help)", scene: "/scenes/help-circle.svg" },
 };
 
+const CREATE_TEMPLATES: Array<{ id: string; label: string; type: ActivityType; title: string; description: string }> = [
+  { id: "coffee", label: "Coffee meetup", type: "chill", title: "Coffee meetup", description: "Casual coffee catch-up and friendly conversation." },
+  { id: "study", label: "Study session", type: "help", title: "Study session", description: "Focused study session. Bring your notes and goals." },
+  { id: "walk", label: "Evening walk", type: "active", title: "Evening walk", description: "Light walk around the area. Comfortable pace." },
+  { id: "sports", label: "Sports hangout", type: "active", title: "Sports hangout", description: "Friendly game session. Beginners welcome." },
+];
+
 let leafletLoader: Promise<LeafletModule> | null = null;
 
 function safeText(value: unknown): string {
@@ -589,6 +596,10 @@ export default function MapScreen({
       setToast({ tone: "error", message: "Pick a valid date and time." });
       return;
     }
+    if (when.getTime() <= Date.now()) {
+      setToast({ tone: "error", message: "Pick a future time." });
+      return;
+    }
 
     try {
       const created = await apiFetch<Activity>("/api/activities", {
@@ -622,6 +633,16 @@ export default function MapScreen({
   }
 
   const isSelectedActivityOwner = !!(selectedActivity && userId && selectedActivity.creatorId === userId);
+  const selectedDateTime = useMemo(() => new Date(`${date}T${time}:00`), [date, time]);
+  const isCreateTimeInPast = Number.isFinite(selectedDateTime.getTime()) && selectedDateTime.getTime() <= nowTick;
+
+  function applyTemplate(templateId: string) {
+    const template = CREATE_TEMPLATES.find((row) => row.id === templateId);
+    if (!template) return;
+    setTitle(template.title);
+    setDescription(template.description);
+    setType(template.type);
+  }
 
   async function reportActivity(activityId: string) {
     if (!userId) {
@@ -1018,6 +1039,16 @@ export default function MapScreen({
 
       <Modal open={showCreate} title="Create activity" onClose={() => setShowCreate(false)} size="lg" position="offsetTop">
         <div className="space-y-3">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold text-[color-mix(in_oklab,var(--muted)_86%,transparent)]">Quick templates</p>
+            <div className="flex flex-wrap gap-2">
+              {CREATE_TEMPLATES.map((template) => (
+                <Button key={template.id} size="sm" variant="ghost" onClick={() => applyTemplate(template.id)}>
+                  {template.label}
+                </Button>
+              ))}
+            </div>
+          </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
             <Select value={type} onChange={(e) => setType(e.target.value as ActivityType)}>
@@ -1036,6 +1067,9 @@ export default function MapScreen({
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
           </div>
+          {isCreateTimeInPast ? (
+            <p className="text-xs text-rose-300">Selected date/time is in the past. Choose a future time.</p>
+          ) : null}
           <Input value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="Limit (optional)" inputMode="numeric" />
 
           <div className="space-y-2">

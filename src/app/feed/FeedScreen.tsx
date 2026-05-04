@@ -46,6 +46,17 @@ export default function FeedScreen({ initialUser }: { initialUser: User }) {
   const [feedView, setFeedView] = useState<"all" | "activities" | "diary">("all");
   const [diaryFilter, setDiaryFilter] = useState<"latest" | "with_location" | "linked_activity">("latest");
 
+  function getActivityReason(activity: FeedActivity): string {
+    const eventTime = new Date(activity.whenISO).getTime();
+    const now = Date.now();
+    const twoHours = 2 * 60 * 60 * 1000;
+    if (Number.isFinite(eventTime) && eventTime > now && eventTime <= now + twoHours) {
+      return "Because it starts soon";
+    }
+    if (activity.joined) return "Because you already joined";
+    return `Because you follow ${activity.creatorName}`;
+  }
+
   useEffect(() => {
     if (!initialUser?.id) return;
     let cancelled = false;
@@ -154,8 +165,9 @@ export default function FeedScreen({ initialUser }: { initialUser: User }) {
                       <p className="text-[11px] text-[color-mix(in_oklab,var(--muted)_72%,transparent)]">{a.creatorName}</p>
                     </div>
                     <p className="mt-1 text-xs text-[color-mix(in_oklab,var(--muted)_75%,transparent)]">
-                      {a.location} • {formatWhenShort(a.whenISO)}
+                      {a.location} - {formatWhenShort(a.whenISO)}
                     </p>
+                    <p className="mt-1 text-[11px] text-[color-mix(in_oklab,var(--accent2)_72%,var(--text)_28%)]">{getActivityReason(a)}</p>
                   </button>
                 ))}
               </div>
@@ -231,3 +243,5 @@ export default function FeedScreen({ initialUser }: { initialUser: User }) {
     </main>
   );
 }
+
+
