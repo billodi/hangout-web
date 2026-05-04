@@ -196,7 +196,6 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
   const [chatBusy, setChatBusy] = useState(false);
   const [chatMessageBusy, setChatMessageBusy] = useState(false);
   const [chatBody, setChatBody] = useState("");
-  const [chatTargetUserId, setChatTargetUserId] = useState("");
   const [chatProfileQuery, setChatProfileQuery] = useState("");
   const [chatProfiles, setChatProfiles] = useState<ChatProfilePick[]>([]);
   const [navUser, setNavUser] = useState<NavUser>(null);
@@ -274,23 +273,6 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
     }
   }
 
-  async function startChat() {
-    const targetId = chatTargetUserId.trim();
-    if (!targetId) return;
-    try {
-      const created = await apiFetch<{ threadId: string }>("/api/chats", {
-        method: "POST",
-        body: JSON.stringify({ userId: targetId }),
-      });
-      setChatTargetUserId("");
-      setSelectedChatId(created.threadId);
-      await refreshChats();
-      await refreshChatMessages(created.threadId);
-    } catch {
-      // ignore
-    }
-  }
-
   async function startChatWithUser(userId: string) {
     if (!userId) return;
     try {
@@ -345,19 +327,18 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
   useEffect(() => {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
-    const fromProfileUser = url.searchParams.get("chatUser");
+    const fromProfileName = url.searchParams.get("chatName");
     const fromProfileThread = url.searchParams.get("chat");
-    if (!fromProfileUser && !fromProfileThread) return;
+    if (!fromProfileName && !fromProfileThread) return;
     setChatOpen(true);
-    if (fromProfileUser) {
-      setChatTargetUserId(fromProfileUser);
-      void startChatWithUser(fromProfileUser);
+    if (fromProfileName) {
+      setChatProfileQuery(fromProfileName);
     } else if (fromProfileThread) {
       setSelectedChatId(fromProfileThread);
       void refreshChats();
       void refreshChatMessages(fromProfileThread);
     }
-    url.searchParams.delete("chatUser");
+    url.searchParams.delete("chatName");
     url.searchParams.delete("chat");
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   }, []);
@@ -671,17 +652,6 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
                     <span className="text-[10px] text-[color-mix(in_oklab,var(--muted)_72%,transparent)]">Chat</span>
                   </button>
                 ))}
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                value={chatTargetUserId}
-                onChange={(e) => setChatTargetUserId(e.target.value)}
-                placeholder="Or paste user ID"
-                className="w-full rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] bg-transparent px-3 py-2 text-sm outline-none"
-              />
-              <button type="button" className="tab-chip tab-chip-active" onClick={() => void startChat()}>
-                Start
-              </button>
             </div>
           </div>
           <div className="grid gap-3 lg:grid-cols-[260px_1fr]">

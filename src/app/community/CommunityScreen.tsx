@@ -280,7 +280,7 @@ export default function CommunityScreen({ initialUser }: { initialUser: User }) 
                   size="sm"
                   variant="secondary"
                   onClick={() => {
-                    window.location.href = `/map?chatUser=${encodeURIComponent(detail.profile.id)}`;
+                    window.location.href = `/map?chatName=${encodeURIComponent(detail.profile.displayName)}`;
                   }}
                 >
                   Chat
@@ -485,7 +485,7 @@ export default function CommunityScreen({ initialUser }: { initialUser: User }) 
                 className="w-full"
                 variant="secondary"
                 onClick={() => {
-                  window.location.href = `/map?chatUser=${encodeURIComponent(detail.profile.id)}`;
+                  window.location.href = `/map?chatName=${encodeURIComponent(detail.profile.displayName)}`;
                 }}
               >
                 Chat
