@@ -45,6 +45,7 @@ export default function FeedScreen({ initialUser }: { initialUser: User }) {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const [followingOnly, setFollowingOnly] = useState(false);
   const [feedView, setFeedView] = useState<"all" | "activities" | "diary">("all");
   const [diaryFilter, setDiaryFilter] = useState<"latest" | "with_location" | "linked_activity">("latest");
 
@@ -55,14 +56,14 @@ export default function FeedScreen({ initialUser }: { initialUser: User }) {
       return "Because it starts soon";
     }
     if (activity.joined) return "Because you already joined";
-    return `Because you follow ${activity.creatorName}`;
+    return followingOnly ? `Because you follow ${activity.creatorName}` : "Because it's public and upcoming";
   }
 
   async function refreshFeed() {
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await apiFetch<{ activities: FeedActivity[]; diary: FeedDiary[] }>("/api/feed", { cache: "no-store" });
+      const data = await apiFetch<{ activities: FeedActivity[]; diary: FeedDiary[] }>(`/api/feed?followingOnly=${followingOnly ? "1" : "0"}`, { cache: "no-store" });
       setActivities(data.activities);
       setDiary(data.diary);
     } catch (error) {
@@ -84,7 +85,7 @@ export default function FeedScreen({ initialUser }: { initialUser: User }) {
     let cancelled = false;
     void (async () => {
       try {
-        const data = await apiFetch<{ activities: FeedActivity[]; diary: FeedDiary[] }>("/api/feed", { cache: "no-store" });
+        const data = await apiFetch<{ activities: FeedActivity[]; diary: FeedDiary[] }>(`/api/feed?followingOnly=${followingOnly ? "1" : "0"}`, { cache: "no-store" });
         if (cancelled) return;
         setActivities(data.activities);
         setDiary(data.diary);
@@ -100,7 +101,7 @@ export default function FeedScreen({ initialUser }: { initialUser: User }) {
     return () => {
       cancelled = true;
     };
-  }, [initialUser?.id]);
+  }, [initialUser?.id, followingOnly]);
 
   if (!initialUser?.id) {
     return (
@@ -129,7 +130,9 @@ export default function FeedScreen({ initialUser }: { initialUser: User }) {
       <section className="shell-panel p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.22em] text-[color-mix(in_oklab,var(--muted)_75%,transparent)]">Following</p>
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.22em] text-[color-mix(in_oklab,var(--muted)_75%,transparent)]">
+              {followingOnly ? "Following" : "Public upcoming"}
+            </p>
             <h1 className="text-xl font-semibold" data-heading="true">
               Feed
             </h1>
@@ -154,6 +157,9 @@ export default function FeedScreen({ initialUser }: { initialUser: User }) {
         ) : null}
 
         <div className="mt-4 flex flex-wrap gap-2">
+          <Button size="sm" variant={followingOnly ? "primary" : "ghost"} onClick={() => setFollowingOnly((v) => !v)} aria-pressed={followingOnly}>
+            Following only
+          </Button>
           <Button size="sm" variant={feedView === "all" ? "primary" : "ghost"} onClick={() => setFeedView("all")} aria-pressed={feedView === "all"}>
             All
           </Button>
