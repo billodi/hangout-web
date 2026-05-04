@@ -12,6 +12,7 @@ import Sheet from "@/components/ui/Sheet";
 import Toast, { type ToastTone } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/apiFetch";
 import { formatWhen } from "@/lib/formatWhen";
+import { usePolling } from "@/lib/usePolling";
 
 type ActivityType = "chill" | "active" | "help";
 
@@ -264,10 +265,7 @@ export default function MapScreen({
     [activities],
   );
 
-  useEffect(() => {
-    const timer = window.setInterval(() => setNowTick(Date.now()), 30_000);
-    return () => window.clearInterval(timer);
-  }, []);
+  usePolling(() => setNowTick(Date.now()), 30_000, true);
 
   useEffect(() => {
     void (async () => {
@@ -448,13 +446,26 @@ export default function MapScreen({
         }
       })();
     };
-    const timer = window.setInterval(pullLatest, 45_000);
     window.addEventListener("focus", pullLatest);
     return () => {
-      window.clearInterval(timer);
       window.removeEventListener("focus", pullLatest);
     };
   }, []);
+  usePolling(
+    () => {
+      void (async () => {
+        try {
+          const rows = await apiFetch<Activity[]>("/api/activities");
+          setActivities(rows);
+          setSelectedActivityId((prev) => prev ?? rows[0]?.id ?? null);
+        } catch {
+          // ignore
+        }
+      })();
+    },
+    45_000,
+    true,
+  );
 
   async function refreshActivities() {
     try {

@@ -1,3 +1,5 @@
+import { incrementMetric, observeMetric } from "@/lib/metrics";
+
 type LogLevel = "info" | "warn" | "error";
 
 type ApiLog = {
@@ -20,6 +22,10 @@ export function logApiEvent(evt: ApiLog) {
     meta: evt.meta ?? null,
   };
   const line = JSON.stringify(payload);
+  incrementMetric(`api.event.${payload.route}.${payload.level}`);
+  if (typeof payload.durationMs === "number") {
+    observeMetric(`api.duration.${payload.route}`, payload.durationMs);
+  }
   if (payload.level === "error") {
     console.error(line);
     return;
@@ -30,4 +36,3 @@ export function logApiEvent(evt: ApiLog) {
   }
   console.log(line);
 }
-

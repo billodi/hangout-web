@@ -52,6 +52,7 @@ Create `.env.local` in the project root:
 DATABASE_URL="postgresql://..."
 GOOGLE_OAUTH_CLIENT_ID="..."
 GOOGLE_OAUTH_CLIENT_SECRET="..."
+METRICS_TOKEN="optional-secret-for-/api/metrics"
 ```
 
 Notes:
@@ -88,6 +89,8 @@ npm run dev
 - `npm run build` - Build production bundle
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint
+- `npm run test:e2e` - Run Playwright end-to-end suite
+- `npm run test:e2e:ui` - Run Playwright UI mode
 - `npm run db:generate` - Generate Drizzle migrations
 - `npm run db:migrate` - Run migrations
 - `npm run db:push` - Push schema directly to DB
@@ -103,6 +106,21 @@ The app includes route handlers under `src/app/api`, including:
 - Uploads: avatar and diary media endpoints
 - Admin: activities, users, stats, reports moderation
 - Health: `GET /api/health`
+- Metrics: `GET /api/metrics` (send header `x-metrics-token` when `METRICS_TOKEN` is configured)
+
+## End-to-End Tests
+
+Playwright tests live under `tests/e2e` and include:
+
+- Public smoke checks (redirect/nav/core pages/health)
+- Authenticated two-user flow:
+  signup/login, activity create/join/leave, and chat message exchange
+
+Run with:
+
+```bash
+npm run test:e2e
+```
 
 ## Deployment
 

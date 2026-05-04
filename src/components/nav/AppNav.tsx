@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import { cn } from "@/components/ui/cn";
+import { usePolling } from "@/lib/usePolling";
 
 type NotificationRow = {
   id: string;
@@ -218,16 +219,14 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
 
   useEffect(() => {
     void refreshNotifications();
-    const t = window.setInterval(() => void refreshNotifications(), 45_000);
-    return () => window.clearInterval(t);
   }, []);
+  usePolling(() => void refreshNotifications(), 45_000, true);
 
   useEffect(() => {
     if (!notifOpen) return;
     void refreshNotifications();
-    const t = window.setInterval(() => void refreshNotifications(), 8_000);
-    return () => window.clearInterval(t);
   }, [notifOpen]);
+  usePolling(() => void refreshNotifications(), 8_000, notifOpen);
 
   useEffect(() => {
     void (async () => {
@@ -308,9 +307,8 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
 
   useEffect(() => {
     void refreshChats();
-    const t = window.setInterval(() => void refreshChats(), 20_000);
-    return () => window.clearInterval(t);
   }, []);
+  usePolling(() => void refreshChats(), 20_000, true);
 
   useEffect(() => {
     if (!chatOpen) return;
@@ -349,17 +347,17 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
     void markChatRead(selectedChatId);
   }, [chatOpen, selectedChatId]);
 
-  useEffect(() => {
-    if (!chatOpen) return;
-    const t = window.setInterval(() => {
+  usePolling(
+    () => {
       void refreshChats();
       if (selectedChatId) {
         void refreshChatMessages(selectedChatId);
         void markChatRead(selectedChatId);
       }
-    }, 4_000);
-    return () => window.clearInterval(t);
-  }, [chatOpen, selectedChatId]);
+    },
+    4_000,
+    chatOpen,
+  );
 
   useEffect(() => {
     setPushSupported("serviceWorker" in navigator && "PushManager" in window && "Notification" in window);
