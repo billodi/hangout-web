@@ -61,6 +61,10 @@ type ActivityOption = {
   lat?: number | null;
   lng?: number | null;
   limit?: number | null;
+  visibility?: "public" | "friends_only" | "invite_only";
+  recurrenceRule?: "weekly" | "monthly" | null;
+  recurrenceUntil?: string | null;
+  coHostIds?: string[];
 };
 
 function safeText(value: unknown): string {
@@ -186,6 +190,10 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
           location: editLocation,
           whenISO,
           type: editType,
+          visibility: editingPost.visibility ?? "public",
+          recurrenceRule: editingPost.recurrenceRule ?? "none",
+          recurrenceUntil: editingPost.recurrenceUntil ?? null,
+          coHostIds: editingPost.coHostIds ?? [],
           limit: editLimit.trim() ? Number.parseInt(editLimit, 10) : null,
           lat: editLat.trim() ? Number.parseFloat(editLat) : null,
           lng: editLng.trim() ? Number.parseFloat(editLng) : null,

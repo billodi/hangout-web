@@ -2,9 +2,9 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { getDb } from "@/db";
-import { activities } from "@/db/schema";
+import { activities, activityCoHosts } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 type UpdatePayload = {
   title?: unknown;
@@ -13,7 +13,11 @@ type UpdatePayload = {
   lat?: unknown;
   lng?: unknown;
   whenISO?: unknown;
+  recurrenceRule?: unknown;
+  recurrenceUntil?: unknown;
   type?: unknown;
+  visibility?: unknown;
+  coHostIds?: unknown;
   limit?: unknown;
 };
 
@@ -53,6 +57,22 @@ function cleanWhenISO(value: unknown): string | null {
   return d.toISOString();
 }
 
+function cleanVisibility(value: unknown): "public" | "friends_only" | "invite_only" {
+  if (value === "friends_only" || value === "invite_only") return value;
+  return "public";
+}
+
+function cleanRecurrenceRule(value: unknown): "none" | "weekly" | "monthly" {
+  if (value === "weekly" || value === "monthly") return value;
+  return "none";
+}
+
+function cleanCoHostIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const ids = value.filter((row): row is string => typeof row === "string").map((row) => row.trim()).filter(Boolean);
+  return [...new Set(ids)];
+}
+
 export async function PATCH(req: Request, ctx: RouteContext<"/api/activities/[id]">) {
   const { id } = await ctx.params;
   const currentUser = await getCurrentUser();
@@ -67,7 +87,12 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/activities/[id
 
   const [existing] = await db.select().from(activities).where(eq(activities.id, id));
   if (!existing) return Response.json({ error: "Not found" }, { status: 404 });
-  if (!existing.creatorId || existing.creatorId !== currentUser.id) {
+  const [isCoHost] = await db
+    .select({ id: activityCoHosts.id })
+    .from(activityCoHosts)
+    .where(and(eq(activityCoHosts.activityId, id), eq(activityCoHosts.userId, currentUser.id)))
+    .limit(1);
+  if (!existing.creatorId || (existing.creatorId !== currentUser.id && !isCoHost)) {
     return Response.json({ error: "Only the creator can edit this activity" }, { status: 403 });
   }
 
@@ -84,7 +109,11 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/activities/[id
   const lat = cleanFloat(body.lat);
   const lng = cleanFloat(body.lng);
   const whenISO = cleanWhenISO(body.whenISO);
+  const recurrenceRule = cleanRecurrenceRule(body.recurrenceRule);
+  const recurrenceUntil = cleanWhenISO(body.recurrenceUntil);
   const type = cleanType(body.type);
+  const visibility = cleanVisibility(body.visibility);
+  const coHostIds = cleanCoHostIds(body.coHostIds).filter((row) => row !== existing.creatorId);
   const limit = cleanLimit(body.limit);
 
   if (!title || !location || !whenISO || lat === null || lng === null) {
@@ -100,13 +129,22 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/activities/[id
       lat,
       lng,
       whenISO,
+      recurrenceRule: recurrenceRule === "none" ? null : recurrenceRule,
+      recurrenceUntil: recurrenceRule === "none" ? null : recurrenceUntil,
       type,
+      visibility,
       limit,
     })
     .where(eq(activities.id, id))
     .returning();
 
   if (!updated) return Response.json({ error: "Not found" }, { status: 404 });
+  if (existing.creatorId === currentUser.id) {
+    await db.delete(activityCoHosts).where(eq(activityCoHosts.activityId, id));
+    if (coHostIds.length > 0) {
+      await db.insert(activityCoHosts).values(coHostIds.map((userId) => ({ activityId: id, userId })));
+    }
+  }
   return Response.json(updated);
 }
 

@@ -31,6 +31,9 @@ type Activity = {
   limit: number | null;
   createdAt: string;
   joined: boolean;
+  coHostIds?: string[];
+  recurrenceRule?: string | null;
+  recurrenceUntil?: string | null;
 };
 
 type User = {
@@ -204,6 +207,9 @@ export default function MapScreen({
   const [pinSearchQuery, setPinSearchQuery] = useState("");
   const [pinSearchResults, setPinSearchResults] = useState<NominatimResult[]>([]);
   const [pinSearchLoading, setPinSearchLoading] = useState(false);
+  const [recurrenceRule, setRecurrenceRule] = useState<"none" | "weekly" | "monthly">("none");
+  const [recurrenceUntilDate, setRecurrenceUntilDate] = useState("");
+  const [coHostIdsText, setCoHostIdsText] = useState("");
   const [reportBusyId, setReportBusyId] = useState<string | null>(null);
   const [blockBusyUserId, setBlockBusyUserId] = useState<string | null>(null);
 
@@ -585,6 +591,10 @@ export default function MapScreen({
     const latNum = Number.parseFloat(pinLat);
     const lngNum = Number.parseFloat(pinLng);
     const limitNum = limit.trim() ? clampInt(limit, 2, 200) : null;
+    const coHostIds = coHostIdsText
+      .split(",")
+      .map((row) => row.trim())
+      .filter(Boolean);
 
     if (!cleanTitle || !cleanLocation || !Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
       setToast({ tone: "error", message: "Title, location label, and map pin are required." });
@@ -613,6 +623,9 @@ export default function MapScreen({
           whenISO: when.toISOString(),
           type,
           visibility,
+          recurrenceRule,
+          recurrenceUntil: recurrenceRule === "none" || !recurrenceUntilDate ? null : new Date(`${recurrenceUntilDate}T23:59:59`).toISOString(),
+          coHostIds,
           limit: limitNum,
         }),
       });
@@ -627,6 +640,9 @@ export default function MapScreen({
       setLimit("");
       setPinSearchQuery("");
       setPinSearchResults([]);
+      setRecurrenceRule("none");
+      setRecurrenceUntilDate("");
+      setCoHostIdsText("");
     } catch (error) {
       setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not create activity" });
     }
@@ -1062,6 +1078,25 @@ export default function MapScreen({
             <option value="friends_only">Friends only</option>
             <option value="invite_only">Invite only</option>
           </Select>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Select value={recurrenceRule} onChange={(e) => setRecurrenceRule(e.target.value as typeof recurrenceRule)}>
+              <option value="none">No repeat</option>
+              <option value="weekly">Repeat weekly</option>
+              <option value="monthly">Repeat monthly</option>
+            </Select>
+            <Input
+              type="date"
+              value={recurrenceUntilDate}
+              onChange={(e) => setRecurrenceUntilDate(e.target.value)}
+              disabled={recurrenceRule === "none"}
+              placeholder="Repeat until"
+            />
+          </div>
+          <Input
+            value={coHostIdsText}
+            onChange={(e) => setCoHostIdsText(e.target.value)}
+            placeholder="Co-host user IDs (comma-separated, optional)"
+          />
           <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" className="min-h-20" />
           <div className="grid grid-cols-2 gap-2">
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />

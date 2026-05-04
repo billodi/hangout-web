@@ -1,36 +1,124 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hangout Web
+
+Hangout Web is a social web app for discovering local activities, joining groups, chatting, and managing your profile.
+
+## Tech Stack
+
+- Next.js 16 (App Router)
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- Drizzle ORM + Drizzle Kit
+- Neon Postgres (configured with `DATABASE_URL`)
+- Leaflet + OpenStreetMap (map UI/data)
+- Web Push notifications
+
+## Features
+
+- Map-first experience (`/map`) powered by OpenStreetMap
+- Activity feed and community screens
+- Create, join, leave, and waitlist activities
+- Activity chat/messages
+- User profiles, reviews, and gallery uploads
+- Follow/block/report flows
+- Admin routes for stats, users, reports, and activity moderation
+- PWA support with web push subscription endpoints
+- Google OAuth login flow
+
+## Project Structure
+
+```text
+src/
+  app/                  # App Router pages + API routes
+  components/           # Shared UI and navigation components
+  db/                   # Drizzle DB client and schema
+  lib/                  # Auth, notifications, helpers, and utilities
+drizzle/                # Migration artifacts
+public/                 # Static assets
+docs/                   # Project docs
+```
+
+## Requirements
+
+- Node.js 20+
+- npm 10+
+- Neon Postgres database (or compatible Postgres)
+
+## Environment Variables
+
+Create `.env.local` in the project root:
+
+```env
+DATABASE_URL="postgresql://..."
+GOOGLE_OAUTH_CLIENT_ID="..."
+GOOGLE_OAUTH_CLIENT_SECRET="..."
+```
+
+Notes:
+
+- `DATABASE_URL` should point to your Neon Postgres instance.
+- Google OAuth callback URL for local development:
+  - `http://localhost:3000/api/auth/google/callback`
 
 ## Getting Started
 
-First, run the development server:
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Apply schema to your database:
+
+```bash
+npm run db:push
+```
+
+3. Start development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+4. Open [http://localhost:3000](http://localhost:3000) (it redirects to `/map`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Available Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `npm run dev` - Run local dev server
+- `npm run build` - Build production bundle
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+- `npm run db:generate` - Generate Drizzle migrations
+- `npm run db:migrate` - Run migrations
+- `npm run db:push` - Push schema directly to DB
+- `npm run db:studio` - Open Drizzle Studio
 
-## Learn More
+## API Overview
 
-To learn more about Next.js, take a look at the following resources:
+The app includes route handlers under `src/app/api`, including:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Auth: login/signup/logout/me + Google OAuth start/callback
+- Activities: list/create/update/delete, join/leave/check-in, waitlist, messages
+- Feed, chats, profiles, follows, blocks, notifications, reports
+- Uploads: avatar and diary media endpoints
+- Admin: activities, users, stats, reports moderation
+- Health: `GET /api/health`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deployment
 
-## Deploy on Vercel
+You can deploy on Vercel or any platform that supports Next.js:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Set the same environment variables in your hosting provider.
+2. Ensure your production Google OAuth callback is configured:
+   - `https://your-domain.com/api/auth/google/callback`
+3. Build and run:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run build
+npm run start
+```
+
+## Security Notes
+
+- Do not commit real secrets in `.env.local`.
+- If credentials were exposed, rotate database/API/OAuth secrets immediately.

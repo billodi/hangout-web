@@ -44,6 +44,8 @@ export const activities = pgTable("activities", {
   lat: doublePrecision("lat"),
   lng: doublePrecision("lng"),
   whenISO: timestamp("when_iso", { withTimezone: true, mode: "string" }).notNull(),
+  recurrenceRule: text("recurrence_rule"), // none | weekly | monthly
+  recurrenceUntil: timestamp("recurrence_until", { withTimezone: true, mode: "string" }),
   type: activityType("type").notNull().default("chill"),
   visibility: activityVisibility("visibility").notNull().default("public"),
   going: integer("going").notNull().default(1),
@@ -64,6 +66,21 @@ export const activityParticipants = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
   },
   (table) => [uniqueIndex("activity_participants_activity_user_unique").on(table.activityId, table.userId)],
+);
+
+export const activityCoHosts = pgTable(
+  "activity_co_hosts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    activityId: uuid("activity_id")
+      .notNull()
+      .references(() => activities.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("activity_co_hosts_activity_user_unique").on(table.activityId, table.userId)],
 );
 
 export const reviews = pgTable("reviews", {

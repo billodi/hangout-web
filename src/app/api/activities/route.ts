@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { getDb } from "@/db";
-import { activityCheckins, activityParticipants, activityWaitlist, activities, follows, users } from "@/db/schema";
+import { activityCheckins, activityCoHosts, activityParticipants, activityWaitlist, activities, follows, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { purgeClosedActivities } from "@/lib/activityRetention";
 import { asc, eq, inArray } from "drizzle-orm";
@@ -16,6 +16,9 @@ type CreatePayload = {
   whenISO?: unknown;
   type?: unknown;
   visibility?: unknown;
+  recurrenceRule?: unknown;
+  recurrenceUntil?: unknown;
+  coHostIds?: unknown;
   limit?: unknown;
 };
 
@@ -58,6 +61,17 @@ function cleanWhenISO(value: unknown): string | null {
   const d = new Date(s);
   if (Number.isNaN(d.getTime())) return null;
   return d.toISOString();
+}
+
+function cleanRecurrenceRule(value: unknown): "none" | "weekly" | "monthly" {
+  if (value === "weekly" || value === "monthly") return value;
+  return "none";
+}
+
+function cleanCoHostIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const ids = value.filter((row): row is string => typeof row === "string").map((row) => row.trim()).filter(Boolean);
+  return [...new Set(ids)];
 }
 
 export async function GET() {
@@ -120,6 +134,20 @@ export async function GET() {
     return false;
   });
 
+  const coHostRows =
+    visibleRows.length > 0
+      ? await db
+          .select({ activityId: activityCoHosts.activityId, userId: activityCoHosts.userId })
+          .from(activityCoHosts)
+          .where(inArray(activityCoHosts.activityId, visibleRows.map((row) => row.id)))
+      : [];
+  const coHostByActivity = new Map<string, string[]>();
+  for (const row of coHostRows) {
+    const prev = coHostByActivity.get(row.activityId) ?? [];
+    prev.push(row.userId);
+    coHostByActivity.set(row.activityId, prev);
+  }
+
   return Response.json(
     visibleRows.map((row) => ({
       ...row,
@@ -127,6 +155,7 @@ export async function GET() {
       joined: currentUser ? joinedSet.has(row.id) : false,
       waitlisted: currentUser ? waitlistSet.has(row.id) : false,
       checkedIn: currentUser ? checkinSet.has(row.id) : false,
+      coHostIds: coHostByActivity.get(row.id) ?? [],
     })),
   );
 }
@@ -156,6 +185,9 @@ export async function POST(req: Request) {
   const lat = cleanFloat(body.lat);
   const lng = cleanFloat(body.lng);
   const whenISO = cleanWhenISO(body.whenISO);
+  const recurrenceRule = cleanRecurrenceRule(body.recurrenceRule);
+  const recurrenceUntil = cleanWhenISO(body.recurrenceUntil);
+  const coHostIds = cleanCoHostIds(body.coHostIds).filter((id) => id !== currentUser.id);
   const type = cleanType(body.type);
   const visibility = cleanVisibility(body.visibility);
   const limit = cleanLimit(body.limit);
@@ -174,6 +206,8 @@ export async function POST(req: Request) {
       lat,
       lng,
       whenISO,
+      recurrenceRule: recurrenceRule === "none" ? null : recurrenceRule,
+      recurrenceUntil: recurrenceRule === "none" ? null : recurrenceUntil,
       type,
       visibility,
       going: 1,
@@ -186,11 +220,19 @@ export async function POST(req: Request) {
     userId: currentUser.id,
   });
 
+  if (coHostIds.length > 0) {
+    const existingUsers = await db.select({ id: users.id }).from(users).where(inArray(users.id, coHostIds));
+    if (existingUsers.length > 0) {
+      await db.insert(activityCoHosts).values(existingUsers.map((row) => ({ activityId: created.id, userId: row.id })));
+    }
+  }
+
   return Response.json(
     {
       ...created,
       creatorName: currentUser.displayName,
       joined: true,
+      coHostIds,
     },
     { status: 201 },
   );
