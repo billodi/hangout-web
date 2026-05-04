@@ -635,6 +635,7 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
               value={chatProfileQuery}
               onChange={(e) => setChatProfileQuery(e.target.value)}
               placeholder="Search profiles to chat"
+              aria-label="Search profiles to chat"
               className="w-full rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] bg-transparent px-3 py-2 text-sm outline-none"
             />
             <div className="max-h-28 overflow-auto rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_65%,transparent)] p-1">
@@ -693,7 +694,7 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
                 <div className="space-y-3">
                   <div className="max-h-[44vh] space-y-2 overflow-auto pr-1">
                     {chatBusy ? (
-                      <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">Loading…</p>
+                      <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">Loading...</p>
                     ) : chatMessages.length === 0 ? (
                       <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">No messages yet.</p>
                     ) : (
@@ -717,7 +718,14 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
                     <input
                       value={chatBody}
                       onChange={(e) => setChatBody(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          void sendChatMessage();
+                        }
+                      }}
                       placeholder="Write a message"
+                      aria-label="Write a message"
                       className="w-full rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] bg-transparent px-3 py-2 text-sm outline-none"
                     />
                     <button

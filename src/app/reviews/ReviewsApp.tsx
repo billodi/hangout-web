@@ -191,7 +191,7 @@ export default function ReviewsApp({ initialUser }: { initialUser: User | null }
   const detailPanel = (
     <section className="shell-panel p-4">
       {loading ? (
-        <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">Loading review panel…</p>
+        <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">Loading review panel...</p>
       ) : !profileDetail ? (
         <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">Select someone to view/post reviews.</p>
       ) : (
@@ -265,7 +265,7 @@ export default function ReviewsApp({ initialUser }: { initialUser: User | null }
               <Textarea
                 value={reviewComment}
                 onChange={(e) => setReviewComment(e.target.value)}
-                placeholder="Say what went well (or what didn’t)"
+                placeholder="Say what went well (or what didn't)"
                 className="min-h-20"
               />
 

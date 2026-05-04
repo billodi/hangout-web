@@ -5,6 +5,9 @@ import { and, desc, eq, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { chatMessages, chatThreads, users } from "@/db/schema";
 import { requireNotBlockedBetween, requireUser } from "@/lib/auth";
+import { logApiEvent } from "@/lib/observability";
+import { getClientIp, requestId } from "@/lib/requestMeta";
+import { rateLimitOrThrow } from "@/lib/rateLimit";
 
 type Params = { params: Promise<{ id: string }> };
 type CreatePayload = { body?: unknown };
@@ -51,6 +54,9 @@ export async function GET(_: Request, props: Params) {
 }
 
 export async function POST(req: Request, props: Params) {
+  const rid = requestId();
+  const ip = getClientIp(req);
+  const startedAt = Date.now();
   try {
     const me = await requireUser();
     const { id } = await props.params;
@@ -71,6 +77,14 @@ export async function POST(req: Request, props: Params) {
     if (!text) return Response.json({ error: "Message required" }, { status: 400 });
     if (text.length > 1500) return Response.json({ error: "Message too long" }, { status: 400 });
 
+    try {
+      await rateLimitOrThrow({ key: `chat:msg:user:${me.id}`, limit: 20, windowMs: 60_000 });
+      await rateLimitOrThrow({ key: `chat:msg:ip:${ip}`, limit: 50, windowMs: 60_000 });
+    } catch {
+      logApiEvent({ level: "warn", route: "/api/chats/[id]/messages", requestId: rid, message: "rate_limited", meta: { userId: me.id, ip, threadId: id } });
+      return Response.json({ error: "Rate limited" }, { status: 429 });
+    }
+
     const db = getDb();
     const nowIso = new Date().toISOString();
 
@@ -87,9 +101,24 @@ export async function POST(req: Request, props: Params) {
       .where(eq(users.id, me.id))
       .limit(1);
 
+    logApiEvent({
+      route: "/api/chats/[id]/messages",
+      requestId: rid,
+      message: "chat_message_created",
+      durationMs: Date.now() - startedAt,
+      meta: { userId: me.id, ip, threadId: id, messageId: created.id },
+    });
+
     return Response.json({ ...created, author });
   } catch (error) {
-    console.error("POST /api/chats/[id]/messages failed", error);
+    logApiEvent({
+      level: "error",
+      route: "/api/chats/[id]/messages",
+      requestId: rid,
+      message: "post_failed",
+      durationMs: Date.now() - startedAt,
+      meta: { error: error instanceof Error ? error.message : String(error), ip },
+    });
     return Response.json({ error: error instanceof Error ? error.message : "Could not send message" }, { status: 400 });
   }
 }

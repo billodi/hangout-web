@@ -246,7 +246,7 @@ export default function CommunityScreen({ initialUser }: { initialUser: User }) 
   const detailPanel = (
     <section className="shell-panel p-4">
       {loadingDetail ? (
-        <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">Loading…</p>
+        <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">Loading...</p>
       ) : !detail ? (
         <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">Select a person.</p>
       ) : (

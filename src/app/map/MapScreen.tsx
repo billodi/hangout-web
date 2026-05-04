@@ -195,7 +195,7 @@ export default function MapScreen({
   const [showCreate, setShowCreate] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
-  /** Single map container must exist — do not mount desktop+mobile layouts at once or `mapElRef` breaks. */
+  /** Single map container must exist; do not mount desktop + mobile layouts at once or `mapElRef` breaks. */
   const [useDesktopLayout, setUseDesktopLayout] = useState(false);
 
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");

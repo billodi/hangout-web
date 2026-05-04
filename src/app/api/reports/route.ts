@@ -4,6 +4,8 @@ export const runtime = "nodejs";
 import { getDb } from "@/db";
 import { reportTargetType, reports } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
+import { logApiEvent } from "@/lib/observability";
+import { getClientIp, requestId } from "@/lib/requestMeta";
 import { rateLimitOrThrow } from "@/lib/rateLimit";
 
 type Payload = {
@@ -20,10 +22,15 @@ function cleanReason(v: unknown): string | null {
 }
 
 export async function POST(req: Request) {
+  const rid = requestId();
+  const ip = getClientIp(req);
+  const startedAt = Date.now();
   const user = await requireUser();
   try {
     await rateLimitOrThrow({ key: `report:${user.id}`, limit: 10, windowMs: 60_000 });
+    await rateLimitOrThrow({ key: `report:ip:${ip}`, limit: 20, windowMs: 60_000 });
   } catch {
+    logApiEvent({ level: "warn", route: "/api/reports", requestId: rid, message: "rate_limited", meta: { userId: user.id, ip } });
     return Response.json({ error: "Rate limited" }, { status: 429 });
   }
 
@@ -31,6 +38,7 @@ export async function POST(req: Request) {
   try {
     body = (await req.json()) as Payload;
   } catch {
+    logApiEvent({ level: "warn", route: "/api/reports", requestId: rid, message: "invalid_json", meta: { userId: user.id, ip } });
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
@@ -38,8 +46,14 @@ export async function POST(req: Request) {
   const targetId = typeof body.targetId === "string" ? body.targetId : null;
   const reason = cleanReason(body.reason);
 
-  if (!targetType || !targetId || !reason) return Response.json({ error: "Invalid report" }, { status: 400 });
-  if (!reportTargetType.enumValues.includes(targetType as any)) return Response.json({ error: "Invalid target type" }, { status: 400 });
+  if (!targetType || !targetId || !reason) {
+    logApiEvent({ level: "warn", route: "/api/reports", requestId: rid, message: "invalid_payload", meta: { userId: user.id, ip } });
+    return Response.json({ error: "Invalid report" }, { status: 400 });
+  }
+  if (!reportTargetType.enumValues.includes(targetType as any)) {
+    logApiEvent({ level: "warn", route: "/api/reports", requestId: rid, message: "invalid_target_type", meta: { userId: user.id, ip } });
+    return Response.json({ error: "Invalid target type" }, { status: 400 });
+  }
 
   const db = getDb();
   const [created] = await db
@@ -47,6 +61,13 @@ export async function POST(req: Request) {
     .values({ reporterUserId: user.id, targetType: targetType as any, targetId, reason })
     .returning();
 
+  logApiEvent({
+    route: "/api/reports",
+    requestId: rid,
+    message: "report_created",
+    durationMs: Date.now() - startedAt,
+    meta: { userId: user.id, ip, targetType, targetId, reportId: created.id },
+  });
+
   return Response.json({ ok: true, report: created });
 }
-
