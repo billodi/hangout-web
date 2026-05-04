@@ -56,7 +56,7 @@ export async function GET(req: Request) {
   const joinedSet = new Set(joinedRows.filter((r) => r.activityId).map((r) => r.activityId as string));
 
   const feedDiary =
-    followedIds.length === 0
+    followingOnly && followedIds.length === 0
       ? []
       : await db
           .select({
@@ -76,7 +76,7 @@ export async function GET(req: Request) {
           .from(galleryEntries)
           .innerJoin(users, eq(galleryEntries.userId, users.id))
           .leftJoin(activities, eq(galleryEntries.activityId, activities.id))
-          .where(inArray(galleryEntries.userId, followedIds))
+          .where(followingOnly ? inArray(galleryEntries.userId, followedIds) : undefined)
           .orderBy(desc(galleryEntries.createdAt))
           .limit(40);
 
