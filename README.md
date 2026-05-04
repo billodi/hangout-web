@@ -53,6 +53,7 @@ DATABASE_URL="postgresql://..."
 GOOGLE_OAUTH_CLIENT_ID="..."
 GOOGLE_OAUTH_CLIENT_SECRET="..."
 METRICS_TOKEN="optional-secret-for-/api/metrics"
+CLOUDINARY_URL="cloudinary://<api_key>:<api_secret>@<cloud_name>"
 ```
 
 Notes:
@@ -60,6 +61,7 @@ Notes:
 - `DATABASE_URL` should point to your Neon Postgres instance.
 - Google OAuth callback URL for local development:
   - `http://localhost:3000/api/auth/google/callback`
+- Cloudinary is used for avatar/diary image uploads.
 
 ## Getting Started
 

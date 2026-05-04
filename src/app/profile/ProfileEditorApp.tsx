@@ -411,7 +411,7 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
                   </Button>
                 </div>
                 <p className="mt-2 text-[11px] text-[color-mix(in_oklab,var(--muted)_70%,transparent)]">
-                  Requires `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` on the server.
+                  Uploaded images are stored in Cloudinary.
                 </p>
               </div>
               <Textarea value={editBio} onChange={(e) => setEditBio(e.target.value)} className="min-h-20" placeholder="Bio" />
