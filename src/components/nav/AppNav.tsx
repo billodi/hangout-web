@@ -464,6 +464,23 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
     }
   }
 
+  async function logout() {
+    try {
+      await apiFetch<{ ok: boolean }>("/api/auth/logout", { method: "POST" });
+    } catch {
+      // ignore errors; just clear local auth state
+    } finally {
+      setNavUser(null);
+      setNotifOpen(false);
+      setChatOpen(false);
+      setUnreadCount(0);
+      setChatUnreadCount(0);
+      void refreshNotifications();
+      void refreshChats();
+      router.refresh();
+    }
+  }
+
   function startGoogleLogin() {
     window.location.href = "/api/auth/google/start";
   }
@@ -534,14 +551,23 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
                 </span>
               </button>
               {navUser ? (
-                <Link
-                  href="/profile"
-                  className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-2.5 py-1.5 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
-                  title="Your profile"
-                >
-                  <NavAvatar name={navUser.displayName} avatarUrl={navUser.avatarUrl} />
-                  <span className="max-w-[110px] truncate">{navUser.displayName}</span>
-                </Link>
+                <>
+                  <Link
+                    href="/profile"
+                    className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-2.5 py-1.5 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
+                    title="Your profile"
+                  >
+                    <NavAvatar name={navUser.displayName} avatarUrl={navUser.avatarUrl} />
+                    <span className="max-w-[110px] truncate">{navUser.displayName}</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => void logout()}
+                    className="rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-2.5 py-1.5 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
+                  >
+                    Logout
+                  </button>
+                </>
               ) : (
                 <button
                   type="button"
@@ -557,14 +583,23 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
             <div className="lg:hidden">
               <div className="flex items-center gap-2">
                 {navUser ? (
-                  <Link
-                    href="/profile"
-                    className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-2 py-1.5 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
-                    title="Your profile"
-                  >
-                    <NavAvatar name={navUser.displayName} avatarUrl={navUser.avatarUrl} />
-                    <span className="max-w-[72px] truncate">{navUser.displayName}</span>
-                  </Link>
+                  <>
+                    <Link
+                      href="/profile"
+                      className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-2 py-1.5 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
+                      title="Your profile"
+                    >
+                      <NavAvatar name={navUser.displayName} avatarUrl={navUser.avatarUrl} />
+                      <span className="max-w-[72px] truncate">{navUser.displayName}</span>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => void logout()}
+                      className="rounded-[var(--radius-sm)] border border-[color-mix(in_oklab,var(--border)_70%,transparent)] px-2 py-1.5 text-xs font-semibold hover:bg-[color-mix(in_oklab,var(--surface2)_50%,transparent)]"
+                    >
+                      Logout
+                    </button>
+                  </>
                 ) : (
                   <button
                     type="button"
