@@ -5,6 +5,7 @@ import { getDb } from "@/db";
 import { activityCheckins, activityCoHosts, activityParticipants, activityWaitlist, activities, follows, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { purgeClosedActivities } from "@/lib/activityRetention";
+import { rateLimitOrThrow, rateLimitResponse } from "@/lib/rateLimit";
 import { asc, eq, inArray } from "drizzle-orm";
 
 type CreatePayload = {
@@ -177,6 +178,12 @@ export async function POST(req: Request) {
   const currentUser = await getCurrentUser();
   if (!currentUser) {
     return Response.json({ error: "Login required" }, { status: 401 });
+  }
+
+  try {
+    await rateLimitOrThrow({ key: `activity:create:${currentUser.id}`, limit: 10, windowMs: 60_000 });
+  } catch (error) {
+    return rateLimitResponse(error);
   }
 
   const title = cleanText(body.title, 80);

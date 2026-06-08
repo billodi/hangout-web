@@ -15,8 +15,6 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.10.2",
-    "@supabase/supabase-js": "^2.104.1",
     "@types/leaflet": "^1.9.21",
     "drizzle-orm": "^0.45.2",
     "leaflet": "^1.9.4",

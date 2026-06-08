@@ -5,7 +5,7 @@ import { getDb } from "@/db";
 import { activityParticipants, activities, follows } from "@/db/schema";
 import { getCurrentUser, requireNotBlockedBetween } from "@/lib/auth";
 import { createNotification } from "@/lib/notifications";
-import { rateLimitOrThrow } from "@/lib/rateLimit";
+import { rateLimitOrThrow, rateLimitResponse } from "@/lib/rateLimit";
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 
 export async function POST(_req: Request, ctx: RouteContext<"/api/activities/[id]/join">) {
@@ -14,9 +14,8 @@ export async function POST(_req: Request, ctx: RouteContext<"/api/activities/[id
   if (!currentUser) return Response.json({ error: "Login required" }, { status: 401 });
   try {
     await rateLimitOrThrow({ key: `join:${currentUser.id}`, limit: 12, windowMs: 60_000 });
-  } catch (e) {
-    const status = typeof (e as any)?.status === "number" ? (e as any).status : 429;
-    return Response.json({ error: "Rate limited" }, { status });
+  } catch (error) {
+    return rateLimitResponse(error);
   }
 
   let db;

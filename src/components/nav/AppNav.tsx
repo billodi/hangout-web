@@ -1,8 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import { cn } from "@/components/ui/cn";
@@ -62,8 +63,11 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     data = text;
   }
   if (!res.ok) {
-    const msg = (data as any)?.error;
-    throw new Error(msg || `Request failed (${res.status})`);
+    const msg =
+      data && typeof data === "object" && "error" in data && typeof (data as { error?: unknown }).error === "string"
+        ? (data as { error: string }).error
+        : `Request failed (${res.status})`;
+    throw new Error(msg);
   }
   return data as T;
 }
@@ -109,15 +113,14 @@ function saveTheme(theme: Theme) {
 }
 
 function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("system");
-  const [systemTheme, setSystemTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<Theme>(() => (typeof window !== "undefined" ? loadTheme() : "system"));
+  const [systemTheme, setSystemTheme] = useState<"light" | "dark">(() =>
+    typeof window !== "undefined" ? getSystemTheme() : "light",
+  );
 
-  useEffect(() => {
-    const initial = loadTheme();
-    setTheme(initial);
-    setSystemTheme(getSystemTheme());
-    applyTheme(initial);
-  }, []);
+  useLayoutEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -160,7 +163,16 @@ function NavIcon({ children }: { children: React.ReactNode }) {
 
 function NavAvatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
   if (avatarUrl) {
-    return <img src={avatarUrl} alt={name} className="h-7 w-7 rounded-full object-cover border border-[color-mix(in_oklab,var(--border)_75%,transparent)]" />;
+    return (
+      <Image
+        src={avatarUrl}
+        alt={name}
+        width={28}
+        height={28}
+        unoptimized
+        className="h-7 w-7 rounded-full object-cover border border-[color-mix(in_oklab,var(--border)_75%,transparent)]"
+      />
+    );
   }
   const initial = name.trim().charAt(0).toUpperCase() || "?";
   return (
@@ -172,6 +184,10 @@ function NavAvatar({ name, avatarUrl }: { name: string; avatarUrl: string | null
 
 export default function AppNav({ active }: { active: "map" | "feed" | "community" | "profile" | "reviews" | "admin" | null }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const chatFromUrl = searchParams.get("chat");
+  const chatNameFromUrl = searchParams.get("chatName");
   const inferred: typeof active = useMemo(() => {
     if (!pathname) return null;
     if (pathname.startsWith("/admin")) return "admin";
@@ -186,18 +202,22 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifRows, setNotifRows] = useState<NotificationRow[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [pushSupported, setPushSupported] = useState(false);
+  const pushSupported =
+    typeof navigator !== "undefined" &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    "Notification" in window;
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(() => !!(chatFromUrl || chatNameFromUrl));
   const [chatRows, setChatRows] = useState<ChatThreadRow[]>([]);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
-  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(() => chatFromUrl);
   const [chatMessages, setChatMessages] = useState<ChatMessageRow[]>([]);
   const [chatBusy, setChatBusy] = useState(false);
   const [chatMessageBusy, setChatMessageBusy] = useState(false);
   const [chatBody, setChatBody] = useState("");
-  const [chatProfileQuery, setChatProfileQuery] = useState("");
+  const [chatProfileQuery, setChatProfileQuery] = useState(() => chatNameFromUrl ?? "");
   const [chatProfiles, setChatProfiles] = useState<ChatProfilePick[]>([]);
   const [navUser, setNavUser] = useState<NavUser>(null);
   const [authOpen, setAuthOpen] = useState(false);
@@ -226,29 +246,20 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
     }
   }
 
-  useEffect(() => {
-    void refreshNotifications();
-  }, []);
-  usePolling(() => void refreshNotifications(), 45_000, true);
-
-  useEffect(() => {
-    if (!notifOpen) return;
-    void refreshNotifications();
-  }, [notifOpen]);
+  usePolling(() => void refreshNotifications(), 45_000, true, true);
   usePolling(() => void refreshNotifications(), 8_000, notifOpen);
+  usePolling(() => void refreshNavUser(), 5_000, true, true);
 
-  useEffect(() => {
-    void refreshNavUser();
-  }, []);
-  useEffect(() => {
-    void refreshNavUser();
-  }, [pathname]);
   useEffect(() => {
     const onFocus = () => void refreshNavUser();
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, []);
-  usePolling(() => void refreshNavUser(), 5_000, true);
+
+  useEffect(() => {
+    const id = window.requestAnimationFrame(() => void refreshNavUser());
+    return () => window.cancelAnimationFrame(id);
+  }, [pathname]);
 
   async function refreshChats() {
     try {
@@ -316,10 +327,7 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
     }
   }
 
-  useEffect(() => {
-    void refreshChats();
-  }, []);
-  usePolling(() => void refreshChats(), 20_000, true);
+  usePolling(() => void refreshChats(), 20_000, true, true);
 
   useEffect(() => {
     if (!chatOpen) return;
@@ -334,28 +342,29 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
   }, [chatOpen]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    const fromProfileName = url.searchParams.get("chatName");
-    const fromProfileThread = url.searchParams.get("chat");
-    if (!fromProfileName && !fromProfileThread) return;
-    setChatOpen(true);
-    if (fromProfileName) {
-      setChatProfileQuery(fromProfileName);
-    } else if (fromProfileThread) {
-      setSelectedChatId(fromProfileThread);
+    if (!chatFromUrl && !chatNameFromUrl) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("chat");
+    params.delete("chatName");
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}`);
+    if (!chatFromUrl) return;
+    const id = window.requestAnimationFrame(() => {
       void refreshChats();
-      void refreshChatMessages(fromProfileThread);
-    }
-    url.searchParams.delete("chatName");
-    url.searchParams.delete("chat");
-    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-  }, []);
+      void refreshChatMessages(chatFromUrl);
+    });
+    return () => window.cancelAnimationFrame(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when deep-linking into chat
+  }, [chatFromUrl, chatNameFromUrl, pathname, router, searchParams]);
 
   useEffect(() => {
     if (!chatOpen || !selectedChatId) return;
-    void refreshChatMessages(selectedChatId);
-    void markChatRead(selectedChatId);
+    const id = window.requestAnimationFrame(() => {
+      void refreshChatMessages(selectedChatId);
+      void markChatRead(selectedChatId);
+    });
+    return () => window.cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh when chat panel opens
   }, [chatOpen, selectedChatId]);
 
   usePolling(
@@ -371,18 +380,21 @@ export default function AppNav({ active }: { active: "map" | "feed" | "community
   );
 
   useEffect(() => {
-    setPushSupported("serviceWorker" in navigator && "PushManager" in window && "Notification" in window);
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    if (!pushSupported) return;
+    let cancelled = false;
     void (async () => {
       try {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
-        setPushEnabled(!!sub);
+        if (!cancelled) setPushEnabled(!!sub);
       } catch {
-        setPushEnabled(false);
+        if (!cancelled) setPushEnabled(false);
       }
     })();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [pushSupported]);
 
   async function enablePush() {
     if (!pushSupported) return;

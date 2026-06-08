@@ -48,7 +48,10 @@ export async function POST(req: Request) {
 
   const db = getDb();
   try {
-    const [row] = await db.insert(savedSearches).values({ userId: user.id, name, query: body.query as any }).returning();
+    const [row] = await db
+      .insert(savedSearches)
+      .values({ userId: user.id, name, query: body.query as Record<string, unknown> })
+      .returning();
     return Response.json(row);
   } catch {
     return Response.json({ error: "Name already used" }, { status: 409 });

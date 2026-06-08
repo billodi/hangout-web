@@ -48,12 +48,17 @@ docs/                   # Project docs
 
 Create `.env.local` in the project root:
 
+Copy `.env.example` to `.env.local` and fill in values:
+
 ```env
 DATABASE_URL="postgresql://..."
+NEXT_PUBLIC_SITE_URL="https://your-domain.com"
 GOOGLE_OAUTH_CLIENT_ID="..."
 GOOGLE_OAUTH_CLIENT_SECRET="..."
 METRICS_TOKEN="optional-secret-for-/api/metrics"
 CLOUDINARY_URL="cloudinary://<api_key>:<api_secret>@<cloud_name>"
+VAPID_PUBLIC_KEY="..."
+VAPID_PRIVATE_KEY="..."
 ```
 
 Notes:
@@ -126,12 +131,22 @@ npm run test:e2e
 
 ## Deployment
 
-You can deploy on Vercel or any platform that supports Next.js:
+Deploy on Vercel (recommended) or any platform that supports Next.js:
 
-1. Set the same environment variables in your hosting provider.
-2. Ensure your production Google OAuth callback is configured:
+1. Push the repo and import it in Vercel.
+2. Set environment variables from `.env.example` in the Vercel project settings.
+3. Run `npm run db:push` against your production Neon database (or apply migrations in CI).
+4. Configure production Google OAuth callback:
    - `https://your-domain.com/api/auth/google/callback`
-3. Build and run:
+5. Set `NEXT_PUBLIC_SITE_URL` to your production domain for correct metadata and links.
+6. Install Playwright browsers locally before running e2e tests:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+Production build:
 
 ```bash
 npm run build

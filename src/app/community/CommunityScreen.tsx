@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import Button from "@/components/ui/Button";
@@ -126,6 +127,7 @@ function roleBadgeLabel(role: "owner" | "admin" | "moderator" | null): string {
 }
 
 export default function CommunityScreen({ initialUser }: { initialUser: User }) {
+  const router = useRouter();
   const userId = initialUser?.id ?? null;
 
   const [profiles, setProfiles] = useState<ProfileSummary[]>([]);
@@ -178,7 +180,7 @@ export default function CommunityScreen({ initialUser }: { initialUser: User }) 
   }, [selectedProfileId]);
 
   function jumpToActivity(activityId: string) {
-    window.location.href = `/map?activity=${encodeURIComponent(activityId)}`;
+    router.push(`/map?activity=${encodeURIComponent(activityId)}`);
   }
 
   const listPanel = (

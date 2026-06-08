@@ -9,9 +9,24 @@ export type RateLimitPolicy = {
   windowMs: number;
 };
 
+export class RateLimitError extends Error {
+  readonly status = 429;
+  readonly resetAtIso: string;
+
+  constructor(resetAtIso: string) {
+    super("Rate limited");
+    this.name = "RateLimitError";
+    this.resetAtIso = resetAtIso;
+  }
+}
+
+export function rateLimitResponse(error: unknown): Response {
+  const status = error instanceof RateLimitError ? error.status : 429;
+  return Response.json({ error: "Rate limited" }, { status });
+}
+
 function windowStartIso(now: Date, windowMs: number): string {
   if (windowMs <= 60_000) {
-    // Align to minute for simpler aggregation in DB.
     return startOfMinute(now).toISOString();
   }
   const t = now.getTime();
@@ -29,7 +44,6 @@ export async function rateLimitOrThrow(policy: RateLimitPolicy): Promise<{ remai
   const startIso = windowStartIso(now, policy.windowMs);
   const resetAtIso = addMilliseconds(new Date(startIso), policy.windowMs).toISOString();
 
-  // Atomic-ish upsert with increment. Uses SQL to avoid race window.
   const [row] = await db
     .insert(rateLimitBuckets)
     .values({ key: policy.key, windowStart: startIso, count: 1 })
@@ -41,12 +55,8 @@ export async function rateLimitOrThrow(policy: RateLimitPolicy): Promise<{ remai
 
   const remaining = Math.max(0, policy.limit - (row?.count ?? policy.limit));
   if ((row?.count ?? 0) > policy.limit) {
-    const err = new Error("Rate limited");
-    (err as any).status = 429;
-    (err as any).resetAtIso = resetAtIso;
-    throw err;
+    throw new RateLimitError(resetAtIso);
   }
 
   return { remaining, resetAtIso };
 }
-

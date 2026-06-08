@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import EmptyState, { EmptyStateButton } from "@/components/EmptyState";
 import Button from "@/components/ui/Button";
 import Toast, { type ToastTone } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/apiFetch";
@@ -106,15 +107,21 @@ export default function FeedScreen({ initialUser }: { initialUser: User }) {
   if (!initialUser?.id) {
     return (
       <main className="relative z-10 mx-auto w-full max-w-[1500px] px-3 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-3 lg:px-8 lg:pb-10 lg:pt-6">
-        <section className="shell-panel p-4">
-          <h1 className="text-xl font-semibold" data-heading="true">
-            Feed
-          </h1>
-          <p className="mt-2 text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">Sign in to see updates from people you follow.</p>
-          <Link href="/community" className="inline-flex mt-3">
-            <Button variant="primary">Go to community</Button>
-          </Link>
-        </section>
+        <EmptyState
+          kicker="Feed"
+          title="Sign in to see your personalized feed"
+          description="Follow people in the community to see their upcoming activities, diary posts, and local updates."
+          action={
+            <>
+              <Link href="/map">
+                <EmptyStateButton>Sign in on map</EmptyStateButton>
+              </Link>
+              <Link href="/community">
+                <EmptyStateButton variant="ghost">Browse community</EmptyStateButton>
+              </Link>
+            </>
+          }
+        />
       </main>
     );
   }

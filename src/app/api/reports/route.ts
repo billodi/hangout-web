@@ -50,7 +50,8 @@ export async function POST(req: Request) {
     logApiEvent({ level: "warn", route: "/api/reports", requestId: rid, message: "invalid_payload", meta: { userId: user.id, ip } });
     return Response.json({ error: "Invalid report" }, { status: 400 });
   }
-  if (!reportTargetType.enumValues.includes(targetType as any)) {
+  const allowedTargets = reportTargetType.enumValues as readonly string[];
+  if (!allowedTargets.includes(targetType)) {
     logApiEvent({ level: "warn", route: "/api/reports", requestId: rid, message: "invalid_target_type", meta: { userId: user.id, ip } });
     return Response.json({ error: "Invalid target type" }, { status: 400 });
   }
@@ -58,7 +59,12 @@ export async function POST(req: Request) {
   const db = getDb();
   const [created] = await db
     .insert(reports)
-    .values({ reporterUserId: user.id, targetType: targetType as any, targetId, reason })
+    .values({
+      reporterUserId: user.id,
+      targetType: targetType as (typeof reportTargetType.enumValues)[number],
+      targetId,
+      reason,
+    })
     .returning();
 
   logApiEvent({

@@ -31,7 +31,10 @@ export async function POST(req: Request) {
   }
 
   const endpoint = cleanStr(body.endpoint);
-  const keys = typeof body.keys === "object" && body.keys ? (body.keys as any) : null;
+  const keys =
+    typeof body.keys === "object" && body.keys !== null && !Array.isArray(body.keys)
+      ? (body.keys as { p256dh?: unknown; auth?: unknown })
+      : null;
   const p256dh = cleanStr(keys?.p256dh);
   const auth = cleanStr(keys?.auth);
   if (!endpoint || !p256dh || !auth) return Response.json({ error: "Invalid subscription" }, { status: 400 });

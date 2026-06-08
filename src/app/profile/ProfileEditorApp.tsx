@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
@@ -92,7 +92,6 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
   const [galleryImageUrl, setGalleryImageUrl] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [diaryFile, setDiaryFile] = useState<File | null>(null);
-  const [diaryPreviewUrl, setDiaryPreviewUrl] = useState("");
   const [uploading, setUploading] = useState<"avatar" | "diary" | null>(null);
   const [galleryCaption, setGalleryCaption] = useState("");
   const [galleryLocation, setGalleryLocation] = useState("");
@@ -112,16 +111,23 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
   const [editLimit, setEditLimit] = useState("");
   const [editLat, setEditLat] = useState("");
   const [editLng, setEditLng] = useState("");
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
+  const diaryPreviewUrl = useMemo(() => {
+    if (!diaryFile) return "";
+    return URL.createObjectURL(diaryFile);
+  }, [diaryFile]);
 
   useEffect(() => {
-    if (!diaryFile) {
-      setDiaryPreviewUrl("");
-      return;
-    }
-    const localUrl = URL.createObjectURL(diaryFile);
-    setDiaryPreviewUrl(localUrl);
-    return () => URL.revokeObjectURL(localUrl);
-  }, [diaryFile]);
+    const timer = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (diaryPreviewUrl) URL.revokeObjectURL(diaryPreviewUrl);
+    };
+  }, [diaryPreviewUrl]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -156,7 +162,7 @@ export default function ProfileEditorApp({ initialUser }: { initialUser: User | 
 
   function getPostStatus(post: ActivityOption): { label: "Open" | "Full" | "Closed"; tone: string } {
     const whenTs = post.whenISO ? new Date(post.whenISO).getTime() : NaN;
-    if (Number.isFinite(whenTs) && whenTs <= Date.now()) {
+    if (Number.isFinite(whenTs) && whenTs <= nowTick) {
       return { label: "Closed", tone: "text-rose-300" };
     }
     if (typeof post.limit === "number" && typeof post.going === "number" && post.going >= post.limit) {

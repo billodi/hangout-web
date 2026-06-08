@@ -294,6 +294,26 @@ a:active {
   font-weight: 700;
 }
 
+.skeleton {
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--surface) 55%, white 45%), transparent);
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 .tab-chip {
   border: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
   border-radius: 9999px;

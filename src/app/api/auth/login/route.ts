@@ -4,6 +4,8 @@ export const runtime = "nodejs";
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
 import { createSession, setSessionCookie, verifyPassword } from "@/lib/auth";
+import { getClientIp } from "@/lib/requestMeta";
+import { rateLimitOrThrow, rateLimitResponse } from "@/lib/rateLimit";
 import { eq } from "drizzle-orm";
 
 type LoginPayload = {
@@ -26,6 +28,13 @@ function cleanPassword(value: unknown): string | null {
 }
 
 export async function POST(req: Request) {
+  const ip = getClientIp(req);
+  try {
+    await rateLimitOrThrow({ key: `login:ip:${ip}`, limit: 12, windowMs: 60_000 });
+  } catch (error) {
+    return rateLimitResponse(error);
+  }
+
   let body: LoginPayload;
   try {
     body = (await req.json()) as LoginPayload;

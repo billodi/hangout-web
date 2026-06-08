@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Sora, Space_Grotesk } from "next/font/google";
+import { Suspense } from "react";
+import AppFooter from "@/components/AppFooter";
 import PwaRegister from "@/components/PwaRegister";
 import AppNav from "@/components/nav/AppNav";
+import { siteDescription, siteName, siteTagline, siteUrl } from "@/lib/site";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -17,32 +20,32 @@ const sora = Sora({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://hangout-web-green.vercel.app"),
+  metadataBase: new URL(siteUrl),
   title: {
-    default: "BilliXa",
-    template: "%s | BilliXa",
+    default: siteName,
+    template: `%s | ${siteName}`,
   },
-  description: "A bold social map to publish local plans, join squads, and grow community reputation.",
-  keywords: ["social map", "community events", "local activities", "meetups", "hangouts"],
+  description: siteDescription,
+  keywords: ["social map", "community events", "local activities", "meetups", "hangouts", "neighborhood"],
   alternates: {
     canonical: "/",
   },
   openGraph: {
     type: "website",
-    url: "https://hangout-web-green.vercel.app",
-    siteName: "BilliXa",
-    title: "BilliXa",
-    description: "Publish local plans, join activities, and build community reputation.",
-    images: [{ url: "/icon-512.svg", width: 512, height: 512, alt: "BilliXa" }],
+    url: siteUrl,
+    siteName,
+    title: siteName,
+    description: siteTagline,
+    images: [{ url: "/icon-512.svg", width: 512, height: 512, alt: siteName }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "BilliXa",
-    description: "Publish local plans, join activities, and build community reputation.",
+    title: siteName,
+    description: siteTagline,
     images: ["/icon-512.svg"],
   },
   manifest: "/manifest.webmanifest",
-  applicationName: "BilliXa",
+  applicationName: siteName,
   category: "social",
   robots: {
     index: true,
@@ -86,10 +89,13 @@ export default function RootLayout({
         <PwaRegister />
         <div className="aurora aurora-a" />
         <div className="aurora aurora-b" />
-        <AppNav active={null} />
+        <Suspense fallback={<header className="relative z-20 mx-auto h-[76px] w-full max-w-[1500px] px-3 pt-3 lg:px-8 lg:pt-8" />}>
+          <AppNav active={null} />
+        </Suspense>
         <div id="main-content" className="flex-1 w-full anim-page">
           {children}
         </div>
+        <AppFooter />
       </body>
     </html>
   );

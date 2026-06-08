@@ -5,7 +5,7 @@ import { getDb } from "@/db";
 import { reportActions, reports } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { createNotification } from "@/lib/notifications";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 type Payload = { status?: unknown; action?: unknown; details?: unknown };
 

@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 
 import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { getDb } from "@/db";
-import { blocks, chatMessages, chatThreads, users } from "@/db/schema";
+import { chatMessages, chatThreads, users } from "@/db/schema";
 import { requireNotBlockedBetween, requireUser } from "@/lib/auth";
 
 type CreatePayload = { userId?: unknown };

@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 
+import EmptyState, { EmptyStateButton } from "@/components/EmptyState";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
@@ -157,6 +158,132 @@ function Avatar({ name, avatarUrl }: { name: string; avatarUrl?: string | null }
   );
 }
 
+function ActivityCard({
+  activity,
+  nowTick,
+  onSelect,
+}: {
+  activity: Activity;
+  nowTick: number;
+  onSelect: (id: string) => void;
+}) {
+  const closed = isClosedByWhen(activity.whenISO, nowTick);
+  const full = activity.limit !== null && activity.going >= activity.limit;
+  const stateLabel = closed ? "Closed" : full ? "Full" : "Open";
+  const stateColor = closed ? "#f43f5e" : full ? "#f7c94b" : "#34d399";
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(activity.id)}
+      className="w-full rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_80%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_42%,transparent)] p-3 text-left transition hover:bg-[color-mix(in_oklab,var(--surface2)_52%,transparent)]"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold leading-tight">{activity.title}</p>
+        <span className="text-[11px] font-bold" style={{ color: stateColor }}>
+          {stateLabel}
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-[color-mix(in_oklab,var(--muted)_75%,transparent)]">{activity.location}</p>
+      <div className="mt-2 flex items-center gap-2 text-[11px] text-[color-mix(in_oklab,var(--muted)_70%,transparent)]">
+        <span>{TYPE_META[activity.type].label}</span>
+        <span>•</span>
+        <span>{formatWhen(activity.whenISO)}</span>
+      </div>
+    </button>
+  );
+}
+
+function ActivityDetails({
+  activity,
+  userId,
+  nowTick,
+  reportBusyId,
+  blockBusyUserId,
+  isOwner,
+  onToggleJoin,
+  onReport,
+  onBlockHost,
+  onEdit,
+  onDelete,
+}: {
+  activity: Activity;
+  userId: string | null;
+  nowTick: number;
+  reportBusyId: string | null;
+  blockBusyUserId: string | null;
+  isOwner: boolean;
+  onToggleJoin: (activity: Activity) => void;
+  onReport: (activityId: string) => void;
+  onBlockHost: (activity: Activity) => void;
+  onEdit: (activity: Activity) => void;
+  onDelete: (activityId: string) => void;
+}) {
+  const typeMeta = TYPE_META[activity.type];
+  const disabled = isClosedByWhen(activity.whenISO, nowTick) || (activity.joined && activity.creatorId === userId);
+
+  return (
+    <div className="space-y-3">
+      <div className="overflow-hidden rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_75%,transparent)]">
+        <Image src={typeMeta.scene} alt={activity.type} width={900} height={420} className="h-28 w-full object-cover" />
+      </div>
+
+      <div className="space-y-1">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="text-base font-semibold leading-tight" data-heading="true">
+            {activity.title}
+          </h3>
+          <span
+            className="rounded-full px-2 py-1 text-[11px] font-bold"
+            style={{ background: `${typeMeta.accent}22`, color: typeMeta.accent }}
+          >
+            {typeMeta.label}
+          </span>
+        </div>
+        <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">{activity.description || "No description."}</p>
+        <p className="text-xs text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">By {activity.creatorName}</p>
+        <p className="text-xs text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">{activity.location}</p>
+        <p className="text-xs text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">{formatWhen(activity.whenISO)}</p>
+        <p className="text-xs text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">
+          {activity.going}
+          {activity.limit !== null ? ` / ${activity.limit}` : ""} going
+        </p>
+        <p className="text-xs text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">
+          Visibility: {activity.visibility === "friends_only" ? "Friends only" : activity.visibility === "invite_only" ? "Invite only" : "Public"}
+        </p>
+      </div>
+
+      <Button variant="primary" className="w-full" disabled={disabled} onClick={() => void onToggleJoin(activity)}>
+        {activity.joined ? (activity.creatorId === userId ? "Host" : "Leave") : "Join"}
+      </Button>
+      <div className="grid grid-cols-2 gap-2">
+        <Button variant="ghost" className="w-full" disabled={reportBusyId === activity.id} onClick={() => void onReport(activity.id)}>
+          {reportBusyId === activity.id ? "Reporting..." : "Report"}
+        </Button>
+        <Button
+          variant="ghost"
+          className="w-full"
+          disabled={!activity.creatorId || activity.creatorId === userId || blockBusyUserId === activity.creatorId}
+          onClick={() => void onBlockHost(activity)}
+        >
+          {blockBusyUserId === activity.creatorId ? "Working..." : "Block host"}
+        </Button>
+      </div>
+
+      {isOwner ? (
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="secondary" className="w-full" onClick={() => onEdit(activity)}>
+            Edit
+          </Button>
+          <Button variant="ghost" className="w-full" onClick={() => void onDelete(activity.id)}>
+            Delete
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function MapScreen({
   initialActivities,
   initialBackendOk,
@@ -223,6 +350,17 @@ export default function MapScreen({
   const [selectedCoHostIds, setSelectedCoHostIds] = useState<string[]>([]);
   const [reportBusyId, setReportBusyId] = useState<string | null>(null);
   const [blockBusyUserId, setBlockBusyUserId] = useState<string | null>(null);
+
+  const [showEdit, setShowEdit] = useState(false);
+  const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editLocation, setEditLocation] = useState("");
+  const [editDate, setEditDate] = useState(() => toDateInput(new Date()));
+  const [editTime, setEditTime] = useState(() => toTimeInput(new Date()));
+  const [editType, setEditType] = useState<ActivityType>("chill");
+  const [editVisibility, setEditVisibility] = useState<"public" | "friends_only" | "invite_only">("public");
+  const [editLimit, setEditLimit] = useState("");
 
   const mapElRef = useRef<HTMLDivElement | null>(null);
   const pickerMapElRef = useRef<HTMLDivElement | null>(null);
@@ -748,93 +886,112 @@ export default function MapScreen({
     }
   }
 
-  function ActivityCard({ activity }: { activity: Activity }) {
-    const closed = isClosedByWhen(activity.whenISO, nowTick);
-    const full = activity.limit !== null && activity.going >= activity.limit;
-    const stateLabel = closed ? "Closed" : full ? "Full" : "Open";
-    const stateColor = closed ? "#f43f5e" : full ? "#f7c94b" : "#34d399";
-
-    return (
-      <button
-        type="button"
-        onClick={() => setSelectedActivityId(activity.id)}
-        className="w-full rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_80%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_42%,transparent)] p-3 text-left transition hover:bg-[color-mix(in_oklab,var(--surface2)_52%,transparent)]"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-semibold leading-tight">{activity.title}</p>
-          <span className="text-[11px] font-bold" style={{ color: stateColor }}>
-            {stateLabel}
-          </span>
-        </div>
-        <p className="mt-1 text-xs text-[color-mix(in_oklab,var(--muted)_75%,transparent)]">{activity.location}</p>
-        <div className="mt-2 flex items-center gap-2 text-[11px] text-[color-mix(in_oklab,var(--muted)_70%,transparent)]">
-          <span>{TYPE_META[activity.type].label}</span>
-          <span>•</span>
-          <span>{formatWhen(activity.whenISO)}</span>
-        </div>
-      </button>
-    );
+  function beginEditActivity(activity: Activity) {
+    const dt = new Date(activity.whenISO);
+    setEditingActivityId(activity.id);
+    setEditTitle(activity.title);
+    setEditDescription(activity.description ?? "");
+    setEditLocation(activity.location);
+    setEditDate(toDateInput(dt));
+    setEditTime(toTimeInput(dt));
+    setEditType(activity.type);
+    setEditVisibility(activity.visibility);
+    setEditLimit(activity.limit === null ? "" : String(activity.limit));
+    setShowEdit(true);
   }
 
-  function Details({ activity }: { activity: Activity }) {
-    const typeMeta = TYPE_META[activity.type];
-    const disabled = isClosedByWhen(activity.whenISO, nowTick) || (activity.joined && activity.creatorId === userId);
-    return (
-      <div className="space-y-3">
-        <div className="overflow-hidden rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_75%,transparent)]">
-          <Image src={typeMeta.scene} alt={activity.type} width={900} height={420} className="h-28 w-full object-cover" />
-        </div>
-
-        <div className="space-y-1">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="text-base font-semibold leading-tight" data-heading="true">
-              {activity.title}
-            </h3>
-            <span
-              className="rounded-full px-2 py-1 text-[11px] font-bold"
-              style={{ background: `${typeMeta.accent}22`, color: typeMeta.accent }}
-            >
-              {typeMeta.label}
-            </span>
-          </div>
-          <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">{activity.description || "No description."}</p>
-          <p className="text-xs text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">By {activity.creatorName}</p>
-          <p className="text-xs text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">{activity.location}</p>
-          <p className="text-xs text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">{formatWhen(activity.whenISO)}</p>
-          <p className="text-xs text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">
-            {activity.going}
-            {activity.limit !== null ? ` / ${activity.limit}` : ""} going
-          </p>
-          <p className="text-xs text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">
-            Visibility: {activity.visibility === "friends_only" ? "Friends only" : activity.visibility === "invite_only" ? "Invite only" : "Public"}
-          </p>
-        </div>
-
-        <Button variant="primary" className="w-full" disabled={disabled} onClick={() => void toggleJoin(activity)}>
-          {activity.joined ? (activity.creatorId === userId ? "Host" : "Leave") : "Join"}
-        </Button>
-        <div className="grid grid-cols-2 gap-2">
-          <Button variant="ghost" className="w-full" disabled={reportBusyId === activity.id} onClick={() => void reportActivity(activity.id)}>
-            {reportBusyId === activity.id ? "Reporting..." : "Report"}
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full"
-            disabled={!activity.creatorId || activity.creatorId === userId || blockBusyUserId === activity.creatorId}
-            onClick={() => void blockHost(activity)}
-          >
-            {blockBusyUserId === activity.creatorId ? "Working..." : "Block host"}
-          </Button>
-        </div>
-
-        {isSelectedActivityOwner ? (
-          <p className="text-xs text-[color-mix(in_oklab,var(--muted)_70%,transparent)]">
-            Editing/deleting stays available from the desktop view for now (coming back in the next pass).
-          </p>
-        ) : null}
-      </div>
-    );
+  function cancelEditActivity() {
+    setEditingActivityId(null);
+    setShowEdit(false);
   }
+
+  async function saveActivityEdits() {
+    if (!editingActivityId || !userId) {
+      setToast({ tone: "error", message: "Login required" });
+      return;
+    }
+
+    const activity = activities.find((row) => row.id === editingActivityId);
+    const latNum = typeof activity?.lat === "number" ? activity.lat : Number.NaN;
+    const lngNum = typeof activity?.lng === "number" ? activity.lng : Number.NaN;
+    const cleanTitle = safeText(editTitle);
+    const cleanDescription = safeText(editDescription);
+    const cleanLocation = safeText(editLocation);
+    const limitNum = editLimit.trim() ? clampInt(editLimit, 2, 200) : null;
+
+    if (!cleanTitle || !cleanLocation || !Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+      setToast({ tone: "error", message: "Title and location are required." });
+      return;
+    }
+
+    const when = new Date(`${editDate}T${editTime}:00`);
+    if (Number.isNaN(when.getTime())) {
+      setToast({ tone: "error", message: "Pick a valid date and time." });
+      return;
+    }
+
+    try {
+      const updated = await apiFetch<Activity>(`/api/activities/${editingActivityId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: cleanTitle,
+          description: cleanDescription || null,
+          location: cleanLocation,
+          lat: latNum,
+          lng: lngNum,
+          whenISO: when.toISOString(),
+          type: editType,
+          visibility: editVisibility,
+          limit: limitNum,
+        }),
+      });
+      setActivities((prev) =>
+        prev.map((row) =>
+          row.id === updated.id ? { ...row, ...updated, creatorName: row.creatorName, joined: row.joined } : row,
+        ),
+      );
+      cancelEditActivity();
+      setToast({ tone: "info", message: "Activity updated." });
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not update activity" });
+    }
+  }
+
+  async function deleteActivity(activityId: string) {
+    if (!userId) {
+      setToast({ tone: "error", message: "Login required" });
+      setShowAuth(true);
+      return;
+    }
+    if (!window.confirm("Delete this activity? This cannot be undone.")) return;
+
+    try {
+      await apiFetch<{ ok: boolean }>(`/api/activities/${activityId}`, { method: "DELETE" });
+      let nextRows: Activity[] = [];
+      setActivities((prev) => {
+        nextRows = prev.filter((row) => row.id !== activityId);
+        return nextRows;
+      });
+      setSelectedActivityId((curr) => (curr === activityId ? nextRows[0]?.id ?? null : curr));
+      if (editingActivityId === activityId) cancelEditActivity();
+      setToast({ tone: "info", message: "Activity deleted." });
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Could not delete activity" });
+    }
+  }
+
+  const activityDetailsProps = {
+    userId,
+    nowTick,
+    reportBusyId,
+    blockBusyUserId,
+    isOwner: isSelectedActivityOwner,
+    onToggleJoin: toggleJoin,
+    onReport: reportActivity,
+    onBlockHost: blockHost,
+    onEdit: beginEditActivity,
+    onDelete: deleteActivity,
+  };
 
   const desktopPanels = (
     <section className="grid gap-4 lg:grid-cols-[360px_1fr_360px]">
@@ -952,12 +1109,14 @@ export default function MapScreen({
           {filteredActivities.length === 0 ? (
             <p className="text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">No activities found.</p>
           ) : (
-            filteredActivities.map((a) => <ActivityCard key={a.id} activity={a} />)
+            filteredActivities.map((a) => (
+              <ActivityCard key={a.id} activity={a} nowTick={nowTick} onSelect={setSelectedActivityId} />
+            ))
           )}
         </div>
         {selectedActivity ? (
           <div className="rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_80%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_40%,transparent)] p-3">
-            <Details activity={selectedActivity} />
+            <ActivityDetails activity={selectedActivity} {...activityDetailsProps} />
           </div>
         ) : null}
       </aside>
@@ -1045,13 +1204,13 @@ export default function MapScreen({
 
           <div className="space-y-2">
             {filteredActivities.map((a) => (
-              <ActivityCard key={a.id} activity={a} />
+              <ActivityCard key={a.id} activity={a} nowTick={nowTick} onSelect={setSelectedActivityId} />
             ))}
           </div>
 
           {selectedActivity ? (
             <div className="rounded-[var(--radius-md)] border border-[color-mix(in_oklab,var(--border)_80%,transparent)] bg-[color-mix(in_oklab,var(--surface2)_40%,transparent)] p-3">
-              <Details activity={selectedActivity} />
+              <ActivityDetails activity={selectedActivity} {...activityDetailsProps} />
             </div>
           ) : null}
 
@@ -1084,7 +1243,7 @@ export default function MapScreen({
   return (
     <main className="relative z-10 mx-auto w-full max-w-[1500px] px-3 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-3 lg:px-8 lg:pb-10 lg:pt-6 text-[var(--text)]">
       {!backendOk ? (
-        <div className="shell-panel p-4 mb-4">
+        <div className="shell-panel mb-4 p-4">
           <h2 className="text-lg font-semibold" data-heading="true">
             Backend unavailable
           </h2>
@@ -1092,6 +1251,41 @@ export default function MapScreen({
             Set your database and env config, then reload to enable live data.
           </p>
         </div>
+      ) : null}
+
+      {backendOk && activities.length === 0 ? (
+        <div className="mb-4">
+          <EmptyState
+            kicker="Get started"
+            title="No activities on the map yet"
+            description="Be the first to publish a hangout in your area. Create an activity, drop a pin, and invite others to join."
+            action={
+              <>
+                <EmptyStateButton onClick={() => setShowCreate(true)}>Create activity</EmptyStateButton>
+                {!user ? <EmptyStateButton variant="ghost" onClick={() => setShowAuth(true)}>Sign in</EmptyStateButton> : null}
+              </>
+            }
+          />
+        </div>
+      ) : null}
+
+      {backendOk && activities.length > 0 ? (
+        <section className="shell-panel mb-4 px-4 py-3 sm:px-5 sm:py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="label-kicker">Live social map</p>
+              <h1 className="text-lg font-semibold sm:text-xl" data-heading="true">
+                Discover activities near you
+              </h1>
+              <p className="mt-1 text-sm text-[color-mix(in_oklab,var(--muted)_78%,transparent)]">
+                {filteredActivities.length} shown · {upcomingCount} upcoming · {openSeatCount} open seats
+              </p>
+            </div>
+            <Button variant="primary" onClick={() => setShowCreate(true)}>
+              + Create activity
+            </Button>
+          </div>
+        </section>
       ) : null}
 
       {useDesktopLayout ? desktopPanels : mobile}
@@ -1249,6 +1443,39 @@ export default function MapScreen({
           >
             {authMode === "login" ? "Need an account? Sign up" : "Already have an account? Login"}
           </button>
+        </div>
+      </Modal>
+
+      <Modal open={showEdit} title="Edit activity" onClose={cancelEditActivity} size="lg" position="offsetTop">
+        <div className="space-y-3">
+          <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Title" />
+          <Textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Description" className="min-h-20" />
+          <Input value={editLocation} onChange={(e) => setEditLocation(e.target.value)} placeholder="Location" />
+          <div className="grid grid-cols-2 gap-2">
+            <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+            <Input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Select value={editType} onChange={(e) => setEditType(e.target.value as ActivityType)}>
+              <option value="chill">Chill</option>
+              <option value="active">Active</option>
+              <option value="help">Help</option>
+            </Select>
+            <Select value={editVisibility} onChange={(e) => setEditVisibility(e.target.value as typeof editVisibility)}>
+              <option value="public">Public</option>
+              <option value="friends_only">Friends only</option>
+              <option value="invite_only">Invite only</option>
+            </Select>
+          </div>
+          <Input value={editLimit} onChange={(e) => setEditLimit(e.target.value)} placeholder="Limit (optional)" inputMode="numeric" />
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="primary" className="w-full" onClick={() => void saveActivityEdits()}>
+              Save changes
+            </Button>
+            <Button variant="ghost" className="w-full" onClick={cancelEditActivity}>
+              Cancel
+            </Button>
+          </div>
         </div>
       </Modal>
 
